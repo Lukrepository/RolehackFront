@@ -133,9 +133,11 @@ public class NH_State
 		if(mRolehackUI != null)
 		{
 			mRolehackUI.onConfigurationChanged(newConfig);
-			// The overlay's visibility just changed, and the message line's clearance
-			// depends on it.
-			applyRolehackTopBand();
+			// setOrientation() above re-shows the classic panels whenever the
+			// orientation flips, so let the one method that knows who owns the
+			// controls decide.  It re-applies the top band too, whose clearance
+			// depends on the overlay's visibility.
+			updateVisibleState();
 		}
 	}
 
@@ -160,8 +162,11 @@ public class NH_State
 				w.preferencesUpdated(prefs);
 		}
 
-		if(mMode == CmdMode.Panel)
-			mCmdPanelLayout.show();
+		// Rolehack: through updateVisibleState(), which knows whether the mobile
+		// interface owns the controls.  Showing the classic panels directly put
+		// them back under the overlay after every visit to Settings, until the
+		// next key press ran updateVisibleState() and hid them again.
+		updateVisibleState();
 
 		mTileset.updateTileset(prefs, mContext.getResources());
 		mMap.updateZoomLimits();
@@ -605,9 +610,15 @@ public class NH_State
 	}
 
 	// ____________________________________________________________________________________
+	/**
+	 * Whether the mobile interface, not the classic panels, is the control
+	 * surface.  It stands down in portrait (RhOverlay.applyVisibility), so this
+	 * must too -- asking only "is it switched on" hid the classic panels in
+	 * portrait on the next key press and left no controls at all.
+	 */
 	public boolean isRolehackUIActive()
 	{
-		return mRolehackUI != null && RhPrefs.enabled();
+		return mRolehackUI != null && mRolehackUI.ownsControls();
 	}
 
 	// ____________________________________________________________________________________
@@ -626,7 +637,7 @@ public class NH_State
 	private void pushRolehackMessage()
 	{
 		if(mRolehackUI != null)
-			mRolehackUI.setMessage(mMessage.getDisplayText());
+			mRolehackUI.setMessage(mMessage.getDisplayText(), mMessage.getOverflowCount());
 	}
 
 	private void applyRolehackTopBand()
@@ -637,16 +648,9 @@ public class NH_State
 		mStatus.setSuppressed(active);
 		mMessage.setSuppressed(active);
 		pushRolehackMessage();
-
-		// The message text is ours now; only ForkFront's blocking '--More--' still
-		// needs moving clear of the header and the status panel.
-		android.view.View more = mContext.findViewById(R.id.more);
-		if(more != null)
-		{
-			float d = mContext.getResources().getDisplayMetrics().density;
-			more.setPadding(active ? (int)(250 * d) : 0,
-			                active ? (int)(44 * d) : 0, 0, 0);
-		}
+		// ForkFront's "--N more--" used to stay up here, padded clear of the
+		// header -- where it sat behind the interface's message panel.  It is
+		// suppressed with the message view now, and the count rides in that panel.
 	}
 
 	// ____________________________________________________________________________________

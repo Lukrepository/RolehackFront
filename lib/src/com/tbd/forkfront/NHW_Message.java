@@ -136,6 +136,13 @@ public class NHW_Message implements NH_Window
 	}
 
 	// ____________________________________________________________________________________
+	/** Rolehack: how many of this turn's messages fell out of the lines shown. */
+	public int getOverflowCount()
+	{
+		return Math.max(0, mDispCount - SHOW_MAX_LINES);
+	}
+
+	// ____________________________________________________________________________________
 	@Override
 	public void setCursorPos( int x, int y )
 	{
@@ -284,7 +291,10 @@ public class NHW_Message implements NH_Window
 		public void showInternal()
 		{
 			update();
-			m_view.setVisibility(View.VISIBLE);
+			// Rolehack: the core shows this window with every message, so the
+			// suppression has to hold here, not only when it is first set --
+			// otherwise the classic line comes back under the interface's own.
+			m_view.setVisibility(mSuppressed ? View.GONE : View.VISIBLE);
 		}
 
 		// ____________________________________________________________________________________
@@ -305,12 +315,15 @@ public class NHW_Message implements NH_Window
 		public void applySuppressed()
 		{
 			m_view.setVisibility(mSuppressed ? View.GONE : View.VISIBLE);
+			update(); // shows or hides "--N more--" to match
 		}
 
 		public void update()
 		{
 			updateText();
-			if( mDispCount > SHOW_MAX_LINES ) {
+			// Rolehack: while suppressed the count is shown in the interface's
+			// message panel instead (getOverflowCount()).
+			if( mDispCount > SHOW_MAX_LINES && !mSuppressed ) {
 				m_more.setText("--" + Integer.toString(mDispCount - SHOW_MAX_LINES) + " more--");
 				m_more.setVisibility(View.VISIBLE);
 			} else

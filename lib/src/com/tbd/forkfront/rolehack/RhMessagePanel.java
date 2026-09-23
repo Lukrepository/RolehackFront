@@ -41,6 +41,11 @@ public class RhMessagePanel extends View
 
 	private String mMessage = "";
 	private StaticLayout mLayout;
+	/** Messages this turn that fell out of the lines shown; 0 for none. */
+	private int mMore;
+	private final TextPaint mMoreText = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+	private static final float MORE_SIZE = 8.5f;
+	private static final float MORE_ROW = 13f;
 
 	public RhMessagePanel(Context context)
 	{
@@ -53,17 +58,41 @@ public class RhMessagePanel extends View
 		mText.setTypeface(RhTheme.monoRegular(context));
 		mText.setTextSize(RhTheme.dp(context, TEXT_SIZE));
 		mText.setColor(RhTheme.MESSAGE_TEXT);
+
+		mMoreText.setTypeface(RhTheme.monoBold(context));
+		mMoreText.setTextSize(RhTheme.dp(context, MORE_SIZE));
+		mMoreText.setColor(RhTheme.RAW_KEY_DIM);
+		mMoreText.setTextAlign(Paint.Align.RIGHT);
 	}
 
 	public void setMessage(String message)
 	{
+		setMessage(message, 0);
+	}
+
+	/**
+	 * The lines to show, and how many earlier messages from the same turn did
+	 * not fit.  ForkFront drew those as a separate "--N more--" line; it is
+	 * carried here instead, as a tag under the text, and the panel takes a tap
+	 * (opening the message history) only while there is something to see.
+	 */
+	public void setMessage(String message, int more)
+	{
 		String m = message == null ? "" : message.trim();
-		if(m.equals(mMessage))
+		int n = Math.max(0, more);
+		if(m.equals(mMessage) && n == mMore)
 			return;
 		mMessage = m;
+		mMore = n;
 		mLayout = null;
+		setClickable(mMore > 0 && m.length() > 0);
 		requestLayout();
 		invalidate();
+	}
+
+	private float moreRow()
+	{
+		return mMore > 0 ? RhTheme.dp(getContext(), MORE_ROW) : 0f;
 	}
 
 	private int contentWidth()
@@ -94,7 +123,7 @@ public class RhMessagePanel extends View
 		else
 		{
 			int lines = Math.min(mLayout.getLineCount(), MAX_LINES);
-			h = mLayout.getLineTop(lines) + Math.round(2 * RhTheme.dp(getContext(), PAD_V));
+			h = mLayout.getLineTop(lines) + Math.round(2 * RhTheme.dp(getContext(), PAD_V) + moreRow());
 		}
 		setMeasuredDimension(w, h);
 	}
@@ -116,8 +145,17 @@ public class RhMessagePanel extends View
 		canvas.translate(RhTheme.dp(getContext(), PAD_H), RhTheme.dp(getContext(), PAD_V));
 		// Clip rather than let a long message spill past the panel's edge.
 		canvas.clipRect(0, 0, contentWidth(),
-		                getHeight() - 2 * RhTheme.dp(getContext(), PAD_V));
+		                getHeight() - 2 * RhTheme.dp(getContext(), PAD_V) - moreRow());
 		mLayout.draw(canvas);
 		canvas.restore();
+
+		if(mMore > 0)
+		{
+			Paint.FontMetrics fm = mMoreText.getFontMetrics();
+			float rowTop = getHeight() - RhTheme.dp(getContext(), PAD_V) - moreRow();
+			float baseline = rowTop + (moreRow() - (fm.descent - fm.ascent)) / 2f - fm.ascent;
+			canvas.drawText("+" + mMore + (mMore == 1 ? " EARLIER MESSAGE" : " EARLIER MESSAGES") + " \u00b7 TAP",
+			                getWidth() - RhTheme.dp(getContext(), PAD_H), baseline, mMoreText);
+		}
 	}
 }

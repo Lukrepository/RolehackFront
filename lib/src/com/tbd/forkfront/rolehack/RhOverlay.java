@@ -160,6 +160,7 @@ public class RhOverlay extends FrameLayout
 	private RhFace mRestFace;
 	private ViewGroup mRestChips;
 	private String mMessageText = "";
+	private int mMessageMore;
 	private RhStatus mStatus;
 	private final List<RhFace> mPadCells = new ArrayList<RhFace>();
 	private RhFace mPadCentre;
@@ -354,6 +355,18 @@ public class RhOverlay extends FrameLayout
 	private void buildMessagePanel()
 	{
 		mMessagePanel = new RhMessagePanel(mContext);
+		// A tap opens the message history, as MSGS does -- but only while some
+		// of this turn's messages have scrolled out (RhMessagePanel.setMessage
+		// makes it clickable then); otherwise taps fall through to the map.
+		mMessagePanel.setOnClickListener(new OnClickListener()
+		{
+			@Override
+			public void onClick(View v)
+			{
+				execute(RhCommands.PREV_MSGS, mMessagePanel);
+			}
+		});
+		mMessagePanel.setClickable(false);
 		LayoutParams lp = new LayoutParams(
 				RhTheme.dpi(mContext, RhMessagePanel.WIDTH), LayoutParams.WRAP_CONTENT);
 		lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
@@ -669,9 +682,29 @@ public class RhOverlay extends FrameLayout
 	/** Verbatim NetHack message output, pushed whenever the core prints. */
 	public void setMessage(String message)
 	{
+		setMessage(message, mMessageMore);
+	}
+
+	/**
+	 * The same, plus how many of this turn's messages fell out of the lines
+	 * shown -- ForkFront's "--N more--", which the panel now carries itself.
+	 */
+	public void setMessage(String message, int more)
+	{
 		mMessageText = message;
+		mMessageMore = more;
 		if(mMessagePanel != null)
-			mMessagePanel.setMessage(message);
+			mMessagePanel.setMessage(message, more);
+	}
+
+	/**
+	 * Whether this overlay, not ForkFront's classic panels, is the control
+	 * surface: switched on, and landscape.  Suppression for the soft keyboard is
+	 * not part of it -- NH_State sets that itself, from this answer.
+	 */
+	public boolean ownsControls()
+	{
+		return RhPrefs.enabled() && !mPortrait;
 	}
 
 	/** Called when the core finishes a status pass, so the fields are consistent. */
