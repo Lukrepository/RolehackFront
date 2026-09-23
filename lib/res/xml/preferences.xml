@@ -102,6 +102,63 @@
 			android:max="255"/>
 
 		<PreferenceScreen
+			android:title="Mobile interface"
+			android:summary="The thumb-anchored control layout">
+
+			<CheckBoxPreference
+				android:title="Use the mobile interface"
+				android:summary="Replace the command panels with the thumb-anchored layout (landscape only)"
+				android:persistent="true"
+				android:defaultValue="true"
+				android:key="rhEnabled"/>
+
+			<ListPreference
+				android:title="Labels"
+				android:summary="What the control faces read"
+				android:persistent="true"
+				android:key="rhLabelMode"
+				android:defaultValue="words"
+				android:entries="@array/rhLabelModeNames"
+				android:entryValues="@array/rhLabelModeValues"/>
+
+			<CheckBoxPreference
+				android:title="Key flash"
+				android:summary="Flash the raw NetHack key above your finger on every press"
+				android:persistent="true"
+				android:defaultValue="true"
+				android:key="rhKeyFlash"/>
+
+			<ListPreference
+				android:title="Movement pad"
+				android:summary="Which pad is fitted at the movement anchor"
+				android:persistent="true"
+				android:key="rhPad"
+				android:defaultValue="ring"
+				android:entries="@array/rhPadNames"
+				android:entryValues="@array/rhPadValues"/>
+
+			<ListPreference
+				android:title="Movement key size"
+				android:summary="Bigger keys mis-tap less; smaller keys need less thumb travel"
+				android:persistent="true"
+				android:key="rhPadCell"
+				android:defaultValue="58"
+				android:entries="@array/rhPadCellNames"
+				android:entryValues="@array/rhPadCellValues"/>
+
+			<com.tbd.forkfront.SliderPreference
+				android:title="Control scale"
+				android:summary="Sizes the thumb clusters, independently of map zoom"
+				android:persistent="true"
+				android:key="rhUiScale"
+				android:dialogMessage="Percent, between 85 and 120"
+				android:defaultValue="100"
+				android:text=""
+				android:max="120"/>
+
+		</PreferenceScreen>
+
+		<PreferenceScreen
 			android:title="Directional overlay"
 			android:summary="Configure the directional overlay">
 

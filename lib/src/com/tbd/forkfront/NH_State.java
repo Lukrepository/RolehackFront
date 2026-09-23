@@ -17,6 +17,10 @@ import android.preference.PreferenceManager;
 import android.view.*;
 import com.tbd.forkfront.*;
 import com.tbd.forkfront.Hearse.Hearse;
+import com.tbd.forkfront.rolehack.RhOverlay;
+import com.tbd.forkfront.rolehack.RhStatus;
+import com.tbd.forkfront.rolehack.RhPrefs;
+import com.tbd.forkfront.rolehack.RhTheme;
 
 public class NH_State
 {
@@ -37,6 +41,9 @@ public class NH_State
 	private Tileset mTileset;
 	private CmdPanelLayout mCmdPanelLayout;
 	private DPadOverlay mDPad;
+	private RhOverlay mRolehackUI;
+	private final RhStatus mRolehackStatus = new RhStatus();
+	private ByteDecoder mDecoder;
 	private boolean mIsDPadActive;
 	private boolean mStickyKeyboard;
 	private boolean mHideQuickKeyboard;
@@ -52,6 +59,7 @@ public class NH_State
 	// ____________________________________________________________________________________
 	public NH_State(Activity context, ByteDecoder decoder)
 	{
+		mDecoder = decoder;
 		mIO = new NetHackIO(context, NhHandler, decoder);
 		mTileset = new Tileset(context);
 		mWindows = new ArrayList<>();
@@ -62,6 +70,7 @@ public class NH_State
 		mMap = new NHW_Map(context, mTileset, mStatus, this, decoder);
 		mCmdPanelLayout = (CmdPanelLayout)context.findViewById(R.id.cmdPanelLayout1);
 		mDPad = new DPadOverlay(this);
+		createRolehackUI(context);
 		mKeyboard = new SoftKeyboard(context, this);
 		mSoundPlayer = new SoundPlayer();
 		mMode = CmdMode.Panel;
@@ -81,6 +90,7 @@ public class NH_State
 		mStatus.setContext(context);
 		mCmdPanelLayout.setContext(context, this);
 		mDPad.setContext(context);
+		createRolehackUI(context);
 		mMap.setContext(context);
 		mTileset.setContext(context);
 	}
@@ -120,6 +130,13 @@ public class NH_State
 
 		mCmdPanelLayout.setOrientation(newConfig.orientation);
 		mDPad.setOrientation(newConfig.orientation);
+		if(mRolehackUI != null)
+		{
+			mRolehackUI.onConfigurationChanged(newConfig);
+			// The overlay's visibility just changed, and the message line's clearance
+			// depends on it.
+			applyRolehackTopBand();
+		}
 	}
 
 	// ____________________________________________________________________________________
@@ -130,6 +147,10 @@ public class NH_State
 
 		mCmdPanelLayout.preferencesUpdated(prefs);
 		mDPad.preferencesUpdated(prefs);
+		RhTheme.loadPrefs(prefs);
+		RhPrefs.load(prefs);
+		if(mRolehackUI != null)
+			mRolehackUI.preferencesUpdated(prefs);
 		mMap.preferencesUpdated(prefs);
 		mStatus.preferencesUpdated(prefs);
 		mMessage.preferencesUpdated(prefs);
@@ -486,7 +507,17 @@ public class NH_State
 			if(mMode == CmdMode.Panel)
 			{
 				mKeyboard.hide();
-				if(mIsDPadActive)
+				if(isRolehackUIActive())
+				{
+					// The numpad answers direction prompts itself, including '.' on the
+					// centre cell for the square you are standing on, so the classic
+					// directional overlay never comes up over it.
+					mDPad.forceHide();
+					mCmdPanelLayout.hide();
+					mRolehackUI.setSuppressed(false);
+					mRolehackUI.setExpectsDirection(mIsDPadActive);
+				}
+				else if(mIsDPadActive)
 				{
 					mDPad.showDirectional(true);
 					mCmdPanelLayout.hide();
@@ -501,8 +532,11 @@ public class NH_State
 			{
 				mKeyboard.show();
 				mCmdPanelLayout.hide();
-				//mDPad.setVisible(false);
 				mDPad.forceHide();
+				// The keyboard owns the bottom of the window; the overlay's controls
+				// would ride up into it.
+				if(mRolehackUI != null)
+					mRolehackUI.setSuppressed(true);
 			}
 		}
 		else
@@ -510,6 +544,108 @@ public class NH_State
 			mCmdPanelLayout.hide();
 			mKeyboard.hide();
 			mDPad.forceHide();
+			if(mRolehackUI != null)
+				mRolehackUI.setSuppressed(true);
+		}
+
+		applyRolehackTopBand();
+	}
+
+	// ____________________________________________________________________________________
+	// Rolehack mobile interface.  Lives above the map in map_frame, alongside the
+	// classic command panels rather than in place of them, so the old layout is one
+	// preference away at all times.
+	private void createRolehackUI(Activity context)
+	{
+		SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+		RhTheme.loadPrefs(prefs);
+		RhPrefs.load(prefs);
+
+		try
+		{
+		mRolehackUI = RhOverlay.attach(context, R.id.map_frame, new RhOverlay.Host()
+		{
+			@Override
+			public void sendCommand(String keySequence)
+			{
+				new Cmd.KeySequnece(NH_State.this, keySequence, "").execute(new Cmd.ExecuteFinishedHandler()
+				{
+					@Override
+					public void onExecuteFinished()
+					{
+					}
+				});
+			}
+
+			@Override
+			public void openSettings()
+			{
+				startPreferences();
+			}
+
+			@Override
+			public void toggleKeyboard()
+			{
+				NH_State.this.toggleKeyboard();
+			}
+		});
+
+		if(mRolehackUI != null)
+		{
+			mRolehackUI.statusUpdated(mRolehackStatus);
+			mRolehackUI.onConfigurationChanged(context.getResources().getConfiguration());
+		}
+		}
+		catch(Throwable t)
+		{
+			// Never let the new interface cost the player their controls.
+			android.util.Log.e("Rolehack", "mobile interface failed to attach", t);
+			mRolehackUI = null;
+		}
+	}
+
+	// ____________________________________________________________________________________
+	public boolean isRolehackUIActive()
+	{
+		return mRolehackUI != null && RhPrefs.enabled();
+	}
+
+	// ____________________________________________________________________________________
+	public boolean rolehackBackPressed()
+	{
+		return isRolehackUIActive() && mRolehackUI.onBackPressed();
+	}
+
+	// ____________________________________________________________________________________
+	/**
+	 * Rolehack: the mobile interface owns the top band.  The classic status rows
+	 * stand down, and the message line is nudged clear of the new header and
+	 * status panel until it gets its own designed panel.
+	 */
+	/** Rolehack: keep the interface's message line in step with ForkFront's log. */
+	private void pushRolehackMessage()
+	{
+		if(mRolehackUI != null)
+			mRolehackUI.setMessage(mMessage.getDisplayText());
+	}
+
+	private void applyRolehackTopBand()
+	{
+		boolean active = isRolehackUIActive() && mRolehackUI != null
+				&& mRolehackUI.getVisibility() == android.view.View.VISIBLE;
+
+		mStatus.setSuppressed(active);
+		mMessage.setSuppressed(active);
+		pushRolehackMessage();
+
+		// The message text is ours now; only ForkFront's blocking '--More--' still
+		// needs moving clear of the header and the status panel.
+		android.view.View more = mContext.findViewById(R.id.more);
+		if(more != null)
+		{
+			float d = mContext.getResources().getDisplayMetrics().density;
+			more.setPadding(active ? (int)(250 * d) : 0,
+			                active ? (int)(44 * d) : 0, 0, 0);
 		}
 	}
 
@@ -557,6 +693,7 @@ public class NH_State
 				mMessage.printString(attr, msg, append, color);
 			} else
 				wnd.printString(attr, msg, append, color);
+			pushRolehackMessage();
 		}
 
 		// ____________________________________________________________________________________
@@ -762,8 +899,29 @@ public class NH_State
 
 		// ____________________________________________________________________________________
 		@Override
+		public void statusField(int idx, byte[] text, int colorOrMask)
+		{
+			mRolehackStatus.setField(idx, text, colorOrMask, mDecoder);
+		}
+
+		@Override
+		public void hereContext(int flags, byte[] monsterName)
+		{
+			mRolehackStatus.setHere(flags, monsterName, mDecoder);
+		}
+
+		@Override
+		public void setPlayerInfo(byte[] name, byte[] role, byte[] race, int flags)
+		{
+			mRolehackStatus.setPlayerInfo(name, role, race, flags, mDecoder);
+		}
+
+		@Override
 		public void redrawStatus()
 		{
+			// The core has finished a status pass, so the fields are consistent now.
+			if(mRolehackUI != null)
+				mRolehackUI.statusUpdated(mRolehackStatus);
 			mStatus.redraw();
 		}
 	};

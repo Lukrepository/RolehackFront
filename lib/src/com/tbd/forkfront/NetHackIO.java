@@ -494,6 +494,51 @@ public class NetHackIO
 	}
 
 	// ____________________________________________________________________________________
+	// Rolehack: the status line, field by field, for the mobile interface.  Sent
+	// alongside the classic two-row text rather than instead of it.
+	@SuppressWarnings("unused")
+	private void statusField(final int idx, final byte[] text, final int colorOrMask)
+	{
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.statusField(idx, text, colorOrMask);
+			}
+		});
+	}
+
+	// ____________________________________________________________________________________
+	@SuppressWarnings("unused")
+	private void hereContext(final int flags, final byte[] monsterName)
+	{
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.hereContext(flags, monsterName);
+			}
+		});
+	}
+
+	// ____________________________________________________________________________________
+	@SuppressWarnings("unused")
+	private void setPlayerInfo(final byte[] name, final byte[] role, final byte[] race,
+	                           final int flags)
+	{
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.setPlayerInfo(name, role, race, flags);
+			}
+		});
+	}
+
+	// ____________________________________________________________________________________
 	@SuppressWarnings("unused")
 	private void redrawStatus()
 	{

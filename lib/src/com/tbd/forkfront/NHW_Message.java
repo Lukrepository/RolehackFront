@@ -21,6 +21,8 @@ public class NHW_Message implements NH_Window
 	private UI mUI;
 	private NHW_Text mLogView;
 	private boolean mIsVisible;
+	/** Rolehack: the mobile interface draws its own message line. */
+	private boolean mSuppressed;
 	private int mWid;
 	private int mOpacity;
 
@@ -100,6 +102,37 @@ public class NHW_Message implements NH_Window
 			addMessage(str);
 		}
 		mUI.update();
+	}
+
+	// ____________________________________________________________________________________
+	/**
+	 * Rolehack: the lines the message view is currently showing, for an interface
+	 * that draws its own.  Same selection updateText() makes, so the two can never
+	 * disagree about what the player was told.
+	 */
+	public String getDisplayText()
+	{
+		if(mDispCount <= 0)
+			return "";
+		StringBuilder sb = new StringBuilder();
+		int lineCount = Math.min(SHOW_MAX_LINES, mDispCount);
+		int iStart = mCurrentIdx - lineCount + 1;
+		for(int i = 0; i < lineCount; i++)
+		{
+			if(i > 0)
+				sb.append('\n');
+			sb.append(mLog[getIndex(iStart + i)]);
+		}
+		return sb.toString();
+	}
+
+	// ____________________________________________________________________________________
+	public void setSuppressed(boolean suppressed)
+	{
+		if(mSuppressed == suppressed)
+			return;
+		mSuppressed = suppressed;
+		mUI.applySuppressed();
 	}
 
 	// ____________________________________________________________________________________
@@ -269,6 +302,11 @@ public class NHW_Message implements NH_Window
 		}
 
 		// ____________________________________________________________________________________
+		public void applySuppressed()
+		{
+			m_view.setVisibility(mSuppressed ? View.GONE : View.VISIBLE);
+		}
+
 		public void update()
 		{
 			updateText();

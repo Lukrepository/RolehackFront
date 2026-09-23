@@ -134,10 +134,42 @@ public class ForkFront extends Activity
 			if(!nhSaveDir.exists())
 				nhSaveDir.mkdir();
 
+			clearStaleLocks(path);
+
 			PreferenceManager.setDefaultValues(ForkFront.this, R.xml.preferences, false);
 			nhState.startNetHack(path.getAbsolutePath());
 		}
 	};
+
+	// ____________________________________________________________________________________
+	/**
+	 * Remove NetHack's score-file locks left behind by a process that did not exit
+	 * cleanly.
+	 *
+	 * lock_file() in files.c creates "<name>_lock" and fails with EEXIST while it
+	 * exists, retrying five times a second apart before giving up.  A lock that
+	 * outlives its owner therefore costs five seconds and a wall of "Waiting for
+	 * access to ..." every time the game writes a score -- which is on death,
+	 * exactly when the player least wants it.
+	 *
+	 * Only one instance of the game can run here, so a lock present before the
+	 * game has started cannot belong to anything.  Level files (<uid><name>.<n>)
+	 * do not use this suffix and are not touched.
+	 */
+	private void clearStaleLocks(File dir)
+	{
+		File[] files = dir.listFiles();
+		if(files == null)
+			return;
+
+		for(File f : files)
+		{
+			if(!f.isFile() || !f.getName().endsWith("_lock"))
+				continue;
+			if(f.delete())
+				android.util.Log.i("Rolehack", "cleared stale lock " + f.getName());
+		}
+	}
 
 	// ____________________________________________________________________________________
 	@Override

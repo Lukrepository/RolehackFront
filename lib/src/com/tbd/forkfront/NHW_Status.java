@@ -15,6 +15,8 @@ public class NHW_Status implements NH_Window
 	private NetHackIO mIO;
 	private UI mUI;
 	private boolean mIsVisible;
+	/** Rolehack: the mobile interface draws its own status, so these rows stand down. */
+	private boolean mSuppressed;
 	private int mWid;
 	private int mOpacity;
 	boolean mOldMode; // TODO get rid of this by fixing proper cursor movement and remove append parameter to putString
@@ -115,6 +117,17 @@ public class NHW_Status implements NH_Window
 		}
 	}
 
+	public void setSuppressed(boolean suppressed)
+	{
+		if(mSuppressed == suppressed)
+			return;
+		mSuppressed = suppressed;
+		if(mSuppressed)
+			mUI.hideInternal();
+		else if(mIsVisible)
+			mUI.showInternal();
+	}
+
 	public void redraw() {
 		mUI.update();
 	}
@@ -166,6 +179,8 @@ public class NHW_Status implements NH_Window
 		// ____________________________________________________________________________________
 		public void showInternal()
 		{
+			if(mSuppressed)
+				return;
 			//update();
 			mViews[0].setVisibility(View.VISIBLE);
 			mViews[1].setVisibility(View.VISIBLE);

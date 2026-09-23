@@ -69,4 +69,35 @@
 		<item>1</item>
 		<item>2</item>
 	</string-array>
+
+	<string-array name="rhLabelModeNames">
+		<item>Words</item>
+		<item>Words + keys</item>
+		<item>Keys only</item>
+	</string-array>
+	<string-array name="rhLabelModeValues">
+		<item>words</item>
+		<item>both</item>
+		<item>keys</item>
+	</string-array>
+	<string-array name="rhPadNames">
+		<item>Ring</item>
+		<item>Cross</item>
+		<item>Puck</item>
+	</string-array>
+	<string-array name="rhPadValues">
+		<item>ring</item>
+		<item>cross</item>
+		<item>puck</item>
+	</string-array>
+	<string-array name="rhPadCellNames">
+		<item>Compact — 46 dp (7.3 mm)</item>
+		<item>Medium — 52 dp (8.3 mm)</item>
+		<item>Parhi — 58 dp (9.2 mm)</item>
+	</string-array>
+	<string-array name="rhPadCellValues">
+		<item>46</item>
+		<item>52</item>
+		<item>58</item>
+	</string-array>
 </resources>
