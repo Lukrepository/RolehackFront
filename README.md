@@ -37,7 +37,7 @@ Each key shows its tap on its face and its hold on its front edge. The small let
 | LOOK | Look here (`:`) | Far look (`;`) |
 | Context key | Lights up when something applies: descend, ascend, sacrifice, loot, open or close a door. With two or more, tap to choose | — |
 | INVENTORY | Inventory (`i`) | All gear commands |
-| Wear · Put on · Wield / Take off · Remove · Swap | That command | Clear the key |
+| Wear · Put on · Wield / Take off · Remove · Swap | That command | Clear the key. On an empty key: pick what goes there |
 | EAT QUAFF READ | Eat | Fan: eat, quaff, read. Tap again for everything |
 | SEARCH | Search the count shown | Choose the count |
 | INTERACT | Apply (`a`) | Fan: apply, sit, dip, engrave. Tap again for everything |
@@ -45,7 +45,7 @@ Each key shows its tap on its face and its hold on its front edge. The small let
 
 - **Counts.** Every count row ends in **×n**, which asks for any number up to NetHack's limit of 32767.
 - **Closing things.** Any fan, radial or drawer closes with a tap anywhere else, or the phone's Back button.
-- **Moving commands onto keys.** Open a drawer and press **ASSIGN**, then tap a command. The keys it can go to light up; tap one. OFFENSE's drawer fills its pinned keys, INVENTORY's fills the equipment keys, and a fan key's drawer (DROP, EAT/QUAFF/READ, INTERACT) fills that key's fan.
+- **Moving commands onto keys.** Hold an empty key (it reads *hold to fill*): its drawer opens ready, and the command you tap goes straight onto that key. A tap on an empty key does nothing, so clearing a key also switches it off. Or open a drawer and press **ASSIGN**, then tap a command; the keys it can go to light up, and you tap one. OFFENSE's drawer fills its pinned keys, INVENTORY's fills the equipment keys, and a fan key's drawer (DROP, EAT/QUAFF/READ, INTERACT) fills that key's fan.
 - **Lamps under the screen.**
   - SEARCH: search mode is on (WORLD → Search mode).
   - ARMED: a command is waiting for a direction.
