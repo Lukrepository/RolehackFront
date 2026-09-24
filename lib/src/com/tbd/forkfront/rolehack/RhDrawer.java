@@ -48,6 +48,10 @@ public class RhDrawer extends FrameLayout
 	private static final float GAP        = 6f;
 	private static final float ITEM_H     = 46f;
 	private static final int   COLUMNS    = 4;
+	/** Portrait: 604dp does not fit a phone's width, so three columns in 420. */
+	private static final float NARROW_WIDTH      = 420f;
+	private static final float NARROW_MAX_HEIGHT = 520f;
+	private static final int   NARROW_COLUMNS    = 3;
 	private static final float TITLE_H    = 32f;
 
 	private final Context mContext;
@@ -56,6 +60,7 @@ public class RhDrawer extends FrameLayout
 	private final Panel mPanel;
 	private final TitleBar mTitle;
 	private final LinearLayout mGrid;
+	private final int mColumns;
 	/**
 	 * ASSIGN, in the title bar (Lucas, 2026-09-24).  While it is lit, tapping a
 	 * command picks it up for pinning instead of running it -- the long press
@@ -68,9 +73,16 @@ public class RhDrawer extends FrameLayout
 	// ____________________________________________________________________________________
 	public RhDrawer(Context context, Listener listener)
 	{
+		this(context, false, listener);
+	}
+
+	/** narrow: portrait, where the drawer takes three columns in NARROW_WIDTH. */
+	public RhDrawer(Context context, boolean narrow, Listener listener)
+	{
 		super(context);
 		mContext = context;
 		mListener = listener;
+		mColumns = narrow ? NARROW_COLUMNS : COLUMNS;
 
 		// The scrim covers the map only, not the header band -- except in the
 		// terminal style, which has no header band, so it covers everything.
@@ -90,7 +102,7 @@ public class RhDrawer extends FrameLayout
 		});
 
 		mPanel = new Panel(context);
-		LayoutParams panelLp = new LayoutParams(RhTheme.dpi(context, WIDTH),
+		LayoutParams panelLp = new LayoutParams(RhTheme.dpi(context, narrow ? NARROW_WIDTH : WIDTH),
 		                                        LayoutParams.WRAP_CONTENT);
 		panelLp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
 		panelLp.topMargin = RhTheme.dpi(context, TOP);
@@ -131,7 +143,7 @@ public class RhDrawer extends FrameLayout
 		LinearLayout.LayoutParams scrollLp = new LinearLayout.LayoutParams(
 				ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 		mPanel.addView(scroll, scrollLp);
-		mPanel.setMaxHeightDp(MAX_HEIGHT);
+		mPanel.setMaxHeightDp(narrow ? NARROW_MAX_HEIGHT : MAX_HEIGHT);
 	}
 
 	// ____________________________________________________________________________________
@@ -152,7 +164,7 @@ public class RhDrawer extends FrameLayout
 
 		for(int i = 0; i < items.length; i++)
 		{
-			if(i % COLUMNS == 0)
+			if(i % mColumns == 0)
 			{
 				row = new LinearLayout(mContext);
 				row.setOrientation(LinearLayout.HORIZONTAL);
@@ -173,7 +185,7 @@ public class RhDrawer extends FrameLayout
 					.sub(item.key, 9f, RhTheme.RAW_KEY_DIM, 1f);
 
 			LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, itemH, 1f);
-			if(i % COLUMNS != 0)
+			if(i % mColumns != 0)
 				lp.leftMargin = gap;
 			row.addView(f, lp);
 
@@ -200,10 +212,10 @@ public class RhDrawer extends FrameLayout
 		}
 
 		// Pad the last row so three items do not stretch across four columns.
-		int remainder = items.length % COLUMNS;
+		int remainder = items.length % mColumns;
 		if(remainder != 0 && row != null)
 		{
-			for(int i = remainder; i < COLUMNS; i++)
+			for(int i = remainder; i < mColumns; i++)
 			{
 				View spacer = new View(mContext);
 				LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, itemH, 1f);

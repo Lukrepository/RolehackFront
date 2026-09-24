@@ -9,7 +9,10 @@ It is an Android library, not an app. To play or build Rolehack, start at **[Rol
 
 ## The interface
 
-It is laid out for two thumbs, in landscape. In portrait, ForkFront's classic button panels take over.
+It is laid out for two thumbs, and works held either way. Turn the phone mid-game and it rearranges without touching the game.
+
+- **Landscape:** a bank of keys each side of the screen, and a deck under it.
+- **Portrait:** the screen across the top, a row of keys under it, and the two banks side by side along the bottom. Each bank ends in a 3×3 pad: movement on the left, and on the right the actions you use most. The map gets far more height, which suits narrow levels like Sokoban.
 
 - **The case.** The keys sit as keycaps in three wells: a bank on each side and a deck under the screen. The map is framed as a CRT. Only the screen passes taps to the map, so a tap that just misses a key never starts a travel command.
 - **Caseless.** The map fills the whole screen. The wells go translucent but still catch near misses. Switch it with GAME → Case on/off, or Settings → Show the case.
@@ -26,18 +29,18 @@ Each key shows its tap on its face and its hold on its front edge. The small let
 |---|---|---|
 | Numpad | Move | — |
 | Numpad centre | Search a turn; Pick up when something is underfoot; your own square when asked for a direction | Context menu: attack, pick up, descend, look here, chat |
-| REST | Rest the count shown | Choose the count. Swipe the key toward the screen's edge to bring in **Long rest** (searches 100–400 turns, or any number), hidden there so it can't be tapped by accident |
+| REST | Rest the count shown | Choose the count. Swipe the key toward the screen's edge to bring in **Long rest**, the darker key (searches 100–400 turns, or any number), hidden there so it can't be tapped by accident |
 | SACRIFICE | Offer | Pray |
 | M1 · M2 · M3 | Run the macro, or set one up if the key is empty | Edit the macro |
 | DROP | Drop one item | Fan: drop by type, from a menu, review first. Tap DROP again for everything |
 | OFFENSE | Fight and Kick keys appear | All attack commands. **Flick** up to Fight, up-right to Kick |
 | LOOK | Look here (`:`) | Far look (`;`) |
-| Context key | Lights up when something applies: descend, ascend, sacrifice, loot, open. With two or more, tap to choose | — |
+| Context key | Lights up when something applies: descend, ascend, sacrifice, loot, open or close a door. With two or more, tap to choose | — |
 | INVENTORY | Inventory (`i`) | All gear commands |
 | Wear · Put on · Wield / Take off · Remove · Swap | That command | Clear the key |
 | EAT QUAFF READ | Eat | Fan: eat, quaff, read. Tap again for everything |
 | SEARCH | Search the count shown | Choose the count |
-| INTERACT | Apply (`a`) | Fan: apply, open, sit, dip, engrave. Tap again for everything |
+| INTERACT | Apply (`a`) | Fan: apply, sit, dip, engrave. Tap again for everything |
 | MENU · WORLD · GAME · KEYS | Settings, the command drawers, the keyboard | — |
 
 - **Counts.** Every count row ends in **×n**, which asks for any number up to NetHack's limit of 32767.

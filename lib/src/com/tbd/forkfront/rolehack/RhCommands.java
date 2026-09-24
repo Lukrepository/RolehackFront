@@ -381,9 +381,11 @@ public final class RhCommands
 	public static final Hub HUB_INTERACT = new Hub("apply", "INTERACT", RhTheme.G90,
 		i("Apply", "a"),
 		new Item[] {
-			i("Apply tool", "a"), i("Open", "o"), i("Sit", "#sit\n"),
+			// Open left the fan (Lucas, 2026-09-24): the context key offers it beside
+			// any closed door, and Close beside an open one.
+			i("Apply tool", "a"), i("Sit", "#sit\n"),
 			i("Dip", "M-d"),
-			// Engrave takes the fifth slot from Tip, which stays in the Use drawer.
+			// Engrave took Tip's place in the fan; Tip stays in the Use drawer.
 			// Elbereth is not a niche command; tipping a container is.  A hold goes
 			// straight to the pick-what-to-write-with menu.
 			alt("Engrave", "E", "E?"),
@@ -684,6 +686,8 @@ public final class RhCommands
 	public static final ContextAction CTX_DESCEND  = new ContextAction("descend", "Descend",  ">");
 	public static final ContextAction CTX_ASCEND   = new ContextAction("ascend",  "Ascend",   "<");
 	public static final ContextAction CTX_OPEN     = new ContextAction("open",    "Open door","o");
+	/** Beside an open door, as Open is beside a closed one (Lucas, 2026-09-24). */
+	public static final ContextAction CTX_CLOSE    = new ContextAction("close",   "Close door","c");
 	/**
 	 * Standing on a container.  The pad's centre cell keeps Pick up -- moving a
 	 * chest to a stash is the more common intent, and burying that would cost
@@ -724,7 +728,7 @@ public final class RhCommands
 
 	/** Priority order for the three-face strip; the first three available win. */
 	public static final ContextAction[] CTX_PRIORITY = {
-		CTX_ATTACK, CTX_PICKUP, CTX_DESCEND, CTX_OPEN, CTX_SEARCH, CTX_REST, CTX_LOOK,
+		CTX_ATTACK, CTX_PICKUP, CTX_DESCEND, CTX_OPEN, CTX_CLOSE, CTX_SEARCH, CTX_REST, CTX_LOOK,
 	};
 
 	/** The context radial extends the strip's list with look here and chat. */

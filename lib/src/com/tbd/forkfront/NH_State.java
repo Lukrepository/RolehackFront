@@ -624,9 +624,9 @@ public class NH_State
 	// ____________________________________________________________________________________
 	/**
 	 * Whether the mobile interface, not the classic panels, is the control
-	 * surface.  It stands down in portrait (RhOverlay.applyVisibility), so this
-	 * must too -- asking only "is it switched on" hid the classic panels in
-	 * portrait on the next key press and left no controls at all.
+	 * surface.  It stands down where it has no layout (RhOverlay.applyVisibility),
+	 * so this must too -- asking only "is it switched on" once hid the classic
+	 * panels in portrait on the next key press and left no controls at all.
 	 */
 	public boolean isRolehackUIActive()
 	{

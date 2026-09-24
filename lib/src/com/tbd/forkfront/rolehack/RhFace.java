@@ -756,7 +756,10 @@ public class RhFace extends View
 		if(keycap)
 		{
 			capGeometry();
-			avail = mCapTop.width() - RhTheme.dp(getContext(), 6f);
+			// A keycap honours the right pad too -- drawLabel() shifts the centre for
+			// it either way, and the swipe well's dots need the room.
+			avail = mCapTop.width() - RhTheme.dp(getContext(), 6f)
+			        - RhTheme.dp(getContext(), mLabelPadRightDp);
 		}
 		else
 		{

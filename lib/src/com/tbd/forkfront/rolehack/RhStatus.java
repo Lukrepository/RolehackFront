@@ -89,6 +89,8 @@ public final class RhStatus
 	/** A container underfoot -- a chest, box, or any bag lying on the floor. */
 	public static final int HERE_CONTAINER   = 0x20;
 	public static final int HERE_ALTAR       = 0x40;
+	/** An open door beside you that could be shut: nothing seen in its doorway. */
+	public static final int ADJ_OPEN_DOOR    = 0x80;
 
 	private int mHereFlags;
 	private String mAdjacentMonster = "";

@@ -187,6 +187,35 @@ public class RhOverlay extends FrameLayout
 	private static final float T_EQ_BAR     = 28f;
 	private static final float T_EQ_CELL_H  = 48f;
 
+	/*
+	 * Portrait (Lucas, 2026-09-24, the twin-pads board of the "Rolehack portrait
+	 * mode" canvas): the glass across the top, one row of keys under it, and the
+	 * two banks side by side along the bottom, each ending in a 3x3 pad under
+	 * its thumb.
+	 *
+	 *   key row      REST ×10 | MSGS | MENU WORLD GAME KEYS | M2 | M3
+	 *   left bank    SACRIFICE | M1            right bank   Wear     Put on   Wield
+	 *                DROP | QUIVER                          Take off Remove   Swap
+	 *                numpad                                 FIRE     ZAP      LOOK
+	 *                                                       OFFENSE  context  EAT QUAFF READ
+	 *                                                       INVENTORY SEARCH  INTERACT
+	 *
+	 * Each bank keeps its landscape order from the top down; the right one's
+	 * action pad gathers the deck and the bank's lower keys under one thumb.  More
+	 * map is the point: the glass gets about 500dp of height on Lucas's phone,
+	 * against about 315 in landscape.  M2 and M3 end the key row, the end nearest
+	 * the right thumb (Lucas).
+	 */
+	private static final float P_ROW_H     = 48f;  // the two rows above each pad
+	private static final float P_ROW_GAP   = 6f;
+	private static final float P_FN_KEY    = 36f;  // the key row
+	private static final int   P_FN_KEYS   = 8;
+	private static final float P_BANK_GAP  = 6f;   // the least room between the banks
+	private static final float P_MIN_GLASS = 300f;
+	private static final float P_DESIGN_W  = 443f; // the canvas's width, before the first layout
+	/** INTERACT sits in the corner in portrait; its fan turns up so the last node stays on screen. */
+	private static final float P_INTERACT_FAN_TURN = 12f;
+
 	private final Activity mContext;
 	private final Host mHost;
 	private final Handler mHandler = new Handler();
@@ -236,6 +265,8 @@ public class RhOverlay extends FrameLayout
 	/** Which hub's radial is open, by hub id, or null. */
 	private String mRadialOpen;
 	private boolean mPortrait;
+	/** The terminal case stood on end (the P_ constants), fixed for the life of one build(). */
+	private boolean mPortraitLayout;
 	/** True while the soft keyboard owns the bottom of the window. */
 	private boolean mSuppressed;
 	/** True while the core is waiting for a direction of its own accord. */
@@ -338,6 +369,8 @@ public class RhOverlay extends FrameLayout
 		}
 
 		mTerm = RhTheme.terminal();
+		mPortrait = portraitNow();
+		mPortraitLayout = mTerm && mPortrait;
 		mHeader = null;
 		mStatusPanel = null;
 		mBadges = null;
@@ -386,7 +419,7 @@ public class RhOverlay extends FrameLayout
 			buildMessagePanel();
 		buildMessageHistoryButton();
 
-		mDrawer = new RhDrawer(mContext, new RhDrawer.Listener()
+		mDrawer = new RhDrawer(mContext, mPortraitLayout, new RhDrawer.Listener()
 		{
 			@Override
 			public void onItem(RhCommands.Item item, View from)
@@ -432,7 +465,8 @@ public class RhOverlay extends FrameLayout
 
 	private void buildTerminalFrame()
 	{
-		mCase = new RhCase(mContext, termBank());
+		mCase = mPortraitLayout ? new RhCase(mContext, termBank(), true, pWellH(), pFnH())
+		                        : new RhCase(mContext, termBank());
 		addView(mCase, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
 		mScreen = new RhScreen(mContext, new RhScreen.Listener()
@@ -444,10 +478,10 @@ public class RhOverlay extends FrameLayout
 			}
 		});
 		LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-		lp.leftMargin   = RhTheme.dpi(mContext, RhCase.glassSide(termBank()));
+		lp.leftMargin   = RhTheme.dpi(mContext, glassSideDp());
 		lp.rightMargin  = lp.leftMargin;
-		lp.topMargin    = RhTheme.dpi(mContext, RhCase.glassTop());
-		lp.bottomMargin = RhTheme.dpi(mContext, RhCase.glassBottom());
+		lp.topMargin    = RhTheme.dpi(mContext, glassTopDp());
+		lp.bottomMargin = RhTheme.dpi(mContext, glassBottomDp());
 		addView(mScreen, lp);
 		if(mStatus != null)
 			mScreen.setStatus(mStatus);
@@ -463,12 +497,16 @@ public class RhOverlay extends FrameLayout
 	 */
 	public android.graphics.Rect mapArea()
 	{
-		// Caseless, the map has the whole screen again, as the colourful style gave it.
-		if(!mTerm || RhTheme.caseless() || getVisibility() != VISIBLE || getWidth() == 0 || getHeight() == 0)
+		if(!mTerm || getVisibility() != VISIBLE || getWidth() == 0 || getHeight() == 0)
 			return null;
-		int side   = RhTheme.dpi(mContext, RhCase.glassSide(termBank()) + 2f);
-		int top    = RhTheme.dpi(mContext, RhCase.glassTop() + RhScreen.MSG_BAND);
-		int bottom = RhTheme.dpi(mContext, RhCase.glassBottom() + RhScreen.statusBand());
+		// Caseless, the map has the whole screen again, as the colourful style gave
+		// it -- except in portrait, where the banks take the bottom of the screen
+		// and the hero is centred in what is left above them.
+		if(RhTheme.caseless() && !mPortraitLayout)
+			return null;
+		int side   = RhTheme.dpi(mContext, glassSideDp() + 2f);
+		int top    = RhTheme.dpi(mContext, glassTopDp() + RhScreen.MSG_BAND);
+		int bottom = RhTheme.dpi(mContext, glassBottomDp() + RhScreen.statusBand());
 		if(getWidth() - 2 * side <= 0 || getHeight() - top - bottom <= 0)
 			return null;
 		return new android.graphics.Rect(side, top, getWidth() - side, getHeight() - bottom);
@@ -518,8 +556,23 @@ public class RhOverlay extends FrameLayout
 			return;
 		float density = getResources().getDisplayMetrics().density;
 		float wDp = getWidth() / density, hDp = getHeight() / density;
-		float limit = Math.min(wDp / termNeedW(), hDp / termNeedH());
+		// Read the orientation afresh: after a rotation this runs before the rebuild.
+		float limit = RhTheme.terminal() && portraitNow()
+				? Math.min(wDp / pNeedW(), hDp / pNeedH())
+				: Math.min(wDp / termNeedW(), hDp / termNeedH());
 		RhTheme.setFitLimit(Math.max(FIT_FLOOR, limit));
+	}
+
+	/** Portrait: both banks side by side, and the least gap between them. */
+	private float pNeedW()
+	{
+		return 2 * (RhCase.MARGIN + termBank()) + P_BANK_GAP;
+	}
+
+	/** Portrait: the controls, the hood round the glass, and a glass worth playing on. */
+	private float pNeedH()
+	{
+		return pControlsH() + RhCase.LIP + RhCase.P_HOOD_TOP + RhCase.MARGIN + P_MIN_GLASS;
 	}
 
 	/** The design height the tallest bank needs, at scale 1. */
@@ -545,7 +598,7 @@ public class RhOverlay extends FrameLayout
 	 */
 	private void placeTermRow2()
 	{
-		if(!mTerm || getHeight() == 0)
+		if(!mTerm || mPortraitLayout || getHeight() == 0)
 			return;
 		float hDp = getHeight() / RhTheme.dp(mContext, 1f);
 		float row1Bottom = termInner() + T_ROW1_H;
@@ -610,6 +663,13 @@ public class RhOverlay extends FrameLayout
 	 */
 	private void buildRightMacros()
 	{
+		if(mPortraitLayout)
+		{
+			// Portrait: the key row's right end.
+			for(int slot = 1; slot < RhPrefs.MACRO_SLOTS && slot < 3; slot++)
+				addView(buildMacroFace(slot), pFnBox(5 + slot));
+			return;
+		}
 		float colW = mPadBox - T_RIGHT_COL - T_GAP;
 		float right = termInner() + T_RIGHT_COL + T_GAP;
 		float bottom = termInner() + T_SEARCH_H + T_GAP;
@@ -646,6 +706,60 @@ public class RhOverlay extends FrameLayout
 		lp.leftMargin = RhTheme.dpi(mContext, leftDp);
 		lp.topMargin = RhTheme.dpi(mContext, topDp);
 		return lp;
+	}
+
+	private boolean portraitNow()
+	{
+		return getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
+	}
+
+	/** Where the glass sits, design dp in from each edge, in either orientation. */
+	private float glassSideDp()   { return mPortraitLayout ? RhCase.portraitGlassSide() : RhCase.glassSide(termBank()); }
+	private float glassTopDp()    { return mPortraitLayout ? RhCase.portraitGlassTop() : RhCase.glassTop(); }
+	private float glassBottomDp() { return mPortraitLayout ? RhCase.portraitGlassBottom(pControlsH()) : RhCase.glassBottom(); }
+
+	// Portrait geometry, derived.  Design dp from the nearest edge, as above.
+
+	/** A bank's well: its pad and the two rows over it. */
+	private float pWellH()     { return 2 * RhCase.WELL_PAD + mPadBox + 2 * (P_ROW_GAP + P_ROW_H); }
+	/** The key row's well. */
+	private float pFnH()       { return 2 * RhCase.WELL_PAD + P_FN_KEY; }
+	/** From the bottom edge up to the hood: the banks, the key row and the gaps round them. */
+	private float pControlsH() { return 3 * RhCase.MARGIN + pWellH() + pFnH(); }
+	/** The bottom edge of the key row's keys. */
+	private float pFnBottom()  { return 2 * RhCase.MARGIN + pWellH() + RhCase.WELL_PAD; }
+	/** The bank rows over the pads: 0 sits on the pad, 1 over that. */
+	private float pRowBottom(int row) { return termInner() + mPadBox + P_ROW_GAP + row * (P_ROW_H + P_ROW_GAP); }
+
+	/** The right bank's action pad, by column and row from its top-left, measured like the numpad. */
+	private float pCellRight(int col)  { return termInner() + (2 - col) * (mPadCell + PAD_GAP); }
+	private float pCellBottom(int row) { return termInner() + (2 - row) * (mPadCell + PAD_GAP); }
+	private LayoutParams pCell(int col, int row)
+	{
+		return box(mPadCell, mPadCell, pCellRight(col), pCellBottom(row), true);
+	}
+	/** A cell's centre, the way hubCx() and hubCy() give one: negative x is from the right. */
+	private float pCellCx(int col) { return -(pCellRight(col) + mPadCell / 2f); }
+	private float pCellCy(int row) { return pCellBottom(row) + mPadCell / 2f; }
+
+	/**
+	 * The key row shares the screen's width out, so it is full on any phone:
+	 * slot 0 is REST, wider, with Long rest beside it; 1 to 7 are MSGS, MENU,
+	 * WORLD, GAME, KEYS, M2 and M3.  Before the first layout the canvas's width
+	 * stands in, and the rebuild on the first size change corrects it.
+	 */
+	private float pFnInner()
+	{
+		float w = getWidth() > 0 ? getWidth() / RhTheme.dp(mContext, 1f) : P_DESIGN_W;
+		return w - 2 * termInner();
+	}
+	private float pFnWideW() { return RhTheme.clamp(pFnInner() * 0.2f, 70f, 120f); }
+	private float pFnKeyW()  { return (pFnInner() - pFnWideW() - (P_FN_KEYS - 1) * T_GAP) / (P_FN_KEYS - 1); }
+	private LayoutParams pFnBox(int slot)
+	{
+		float left = slot == 0 ? termInner()
+							   : termInner() + pFnWideW() + T_GAP + (slot - 1) * (pFnKeyW() + T_GAP);
+		return boxLB(slot == 0 ? pFnWideW() : pFnKeyW(), P_FN_KEY, left, pFnBottom());
 	}
 
 	// ____________________________________________________________________________________
@@ -760,7 +874,8 @@ public class RhOverlay extends FrameLayout
 			// bank from the thumb, which is the point of where they were.
 			float in = termInner();
 			mLongFace = new RhFace(mContext).radius(4f).face(RhTheme.A90)
-					.textColor(RhTheme.BADGE_TEXT);
+					.textColor(RhTheme.BADGE_TEXT)
+					.cap(RhTheme.longRestCap());
 			bindHold(mLongFace, CHIP_HOLD_MS,
 				new Runnable() { @Override public void run() { openRestChips(RhCommands.CTX_LONG_REST); } },
 				new Runnable()
@@ -776,14 +891,30 @@ public class RhOverlay extends FrameLayout
 			// Long rest waits past Rest's right edge, out of sight until the slot
 			// is swiped toward the screen's edge -- gurrhack's scrolling panels,
 			// which is how Lucas kept his s300 key (see RhScrollWell).
+			float restW = mPortraitLayout ? pFnWideW() : termWideKey();
+			// The well's dots sit at the right edge; the labels keep clear of them, and
+			// wrap on portrait's narrower key ("LONG REST ×14" ran under them).
+			mRestFace.labelPadRight(14f);
+			mLongFace.labelPadRight(14f);
 			mRestWell = new RhScrollWell(mContext, mRestFace, mLongFace,
-					RhTheme.dpi(mContext, termWideKey()), RhTheme.dpi(mContext, T_GAP));
-			addView(mRestWell, boxTL(termWideKey(), T_ROW1_H, in, in));
-			addView(prev, boxTL(T_KEY, T_ROW1_H, in + mPadBox - T_KEY, in));
-			// Macro 1 under Msgs; 2 and 3 are in the right bank (buildRightMacros).
-			RhFace macro = buildMacroFace(0);
-			addView(macro, boxTL(termWideKey(), T_KEY, in + T_KEY + T_GAP, termRow2Top()));
-			mTermRow2.add(macro);
+					RhTheme.dpi(mContext, restW), RhTheme.dpi(mContext, T_GAP));
+			if(mPortraitLayout)
+			{
+				// Portrait: Rest and Msgs open the key row, and the macro keeps its
+				// place beside SACRIFICE, over DROP.
+				addView(mRestWell, pFnBox(0));
+				addView(prev, pFnBox(1));
+				addView(buildMacroFace(0), boxLB(termWideKey(), P_ROW_H, in + T_KEY + T_GAP, pRowBottom(1)));
+			}
+			else
+			{
+				addView(mRestWell, boxTL(termWideKey(), T_ROW1_H, in, in));
+				addView(prev, boxTL(T_KEY, T_ROW1_H, in + mPadBox - T_KEY, in));
+				// Macro 1 under Msgs; 2 and 3 are in the right bank (buildRightMacros).
+				RhFace macro = buildMacroFace(0);
+				addView(macro, boxTL(termWideKey(), T_KEY, in + T_KEY + T_GAP, termRow2Top()));
+				mTermRow2.add(macro);
+			}
 		}
 		else
 		{
@@ -842,8 +973,6 @@ public class RhOverlay extends FrameLayout
 	{
 		final RhFace f = new RhFace(mContext).radius(4f).face(RhTheme.G90);
 		mMacroFaces[slot] = f;
-		if(mTerm)
-			f.tag("M" + (slot + 1));
 
 		bindHold(f, HUB_HOLD_MS,
 			new Runnable() { @Override public void run() { editMacro(slot); } },
@@ -879,6 +1008,12 @@ public class RhOverlay extends FrameLayout
 		RhFace f = mMacroFaces[slot];
 		if(f == null)
 			return;
+		// The corner says which macro a key is.  Portrait's key row is too narrow
+		// for it beside a name, so there it gives way only to a label with something
+		// to read -- a macro of spaces keeps it.
+		if(mTerm)
+			f.tag(mPortraitLayout && slot > 0 && RhPrefs.macroSet(slot)
+			      && macroLabel(slot).trim().length() > 0 ? "" : "M" + (slot + 1));
 		if(RhPrefs.macroSet(slot))
 			f.placeholder(false)
 			 .textColor(RhTheme.TEXT)
@@ -985,7 +1120,14 @@ public class RhOverlay extends FrameLayout
 
 		LayoutParams lp = new LayoutParams(RhTheme.dpi(mContext, CHIP_ROW_W) + 2 * inset,
 		                                   RhTheme.dpi(mContext, CHIP_SIZE) + 2 * inset);
-		if(mTerm)
+		if(mPortraitLayout)
+		{
+			// Portrait: above the Rest key, over the foot of the glass.
+			lp.gravity = Gravity.BOTTOM | Gravity.LEFT;
+			lp.leftMargin = RhTheme.dpi(mContext, termInner());
+			lp.bottomMargin = RhTheme.dpi(mContext, pFnBottom() + P_FN_KEY + CHIP_GAP_ABOVE);
+		}
+		else if(mTerm)
 		{
 			// Under the Rest slot, over the bank's second row while it is open.
 			lp.gravity = Gravity.TOP | Gravity.LEFT;
@@ -1177,12 +1319,18 @@ public class RhOverlay extends FrameLayout
 
 	/**
 	 * Whether this overlay, not ForkFront's classic panels, is the control
-	 * surface: switched on, and landscape.  Suppression for the soft keyboard is
+	 * surface: switched on, with a layout for the way the phone is held.  Suppression for the soft keyboard is
 	 * not part of it -- NH_State sets that itself, from this answer.
 	 */
 	public boolean ownsControls()
 	{
-		return RhPrefs.enabled() && !mPortrait;
+		return RhPrefs.enabled() && hasLayoutFor(mPortrait);
+	}
+
+	/** Only the terminal style has a portrait layout; the retired colourful one never had. */
+	private static boolean hasLayoutFor(boolean portrait)
+	{
+		return !portrait || RhTheme.terminal();
 	}
 
 	/** Called when the core finishes a status pass, so the fields are consistent. */
@@ -1234,6 +1382,8 @@ public class RhOverlay extends FrameLayout
 			mCtxCandidates.add(RhCommands.CTX_LOOT);
 		if(mStatus.here(RhStatus.ADJ_CLOSED_DOOR))
 			mCtxCandidates.add(RhCommands.CTX_OPEN);
+		if(mStatus.here(RhStatus.ADJ_OPEN_DOOR))
+			mCtxCandidates.add(RhCommands.CTX_CLOSE);
 
 		StringBuilder sig = new StringBuilder();
 		for(RhCommands.ContextAction a : mCtxCandidates)
@@ -1431,6 +1581,18 @@ public class RhOverlay extends FrameLayout
 	 */
 	private float hubCx(RhCommands.Hub hub)
 	{
+		if(mPortraitLayout)
+		{
+			// Portrait: DROP keeps its wide key over the numpad; the rest are
+			// cells of the right bank's action pad.
+			if(hub == RhCommands.HUB_DROP)
+				return termInner() + termWideKey() / 2f;
+			if(hub == RhCommands.HUB_ATTACK || hub == RhCommands.HUB_EQUIP)
+				return pCellCx(0);
+			if(hub == RhCommands.HUB_INTERACT || hub == RhCommands.HUB_CONSUME)
+				return pCellCx(2);
+			return hub.cx;
+		}
 		if(mTerm)
 		{
 			// OFFENSE opens the deck, beside the pad's well; DROP is the wide key
@@ -1455,6 +1617,8 @@ public class RhOverlay extends FrameLayout
 	 */
 	private float hubW(RhCommands.Hub hub)
 	{
+		if(mPortraitLayout)
+			return hub == RhCommands.HUB_DROP ? termWideKey() : mPadCell;
 		if(mTerm)
 		{
 			if(hub == RhCommands.HUB_ATTACK)
@@ -1470,6 +1634,8 @@ public class RhOverlay extends FrameLayout
 
 	private float hubH(RhCommands.Hub hub)
 	{
+		if(mPortraitLayout)
+			return hub == RhCommands.HUB_DROP ? P_ROW_H : mPadCell;
 		if(mTerm)
 		{
 			if(hub == RhCommands.HUB_ATTACK)
@@ -1487,6 +1653,16 @@ public class RhOverlay extends FrameLayout
 
 	private float hubCy(RhCommands.Hub hub)
 	{
+		if(mPortraitLayout)
+		{
+			if(hub == RhCommands.HUB_DROP)
+				return pRowBottom(0) + P_ROW_H / 2f;
+			if(hub == RhCommands.HUB_ATTACK || hub == RhCommands.HUB_CONSUME)
+				return pCellCy(1);
+			if(hub == RhCommands.HUB_EQUIP || hub == RhCommands.HUB_INTERACT)
+				return pCellCy(2);
+			return hub.cyFromBottom;
+		}
 		if(mTerm)
 		{
 			if(hub == RhCommands.HUB_ATTACK)
@@ -1687,6 +1863,12 @@ public class RhOverlay extends FrameLayout
 			addHub(hub);
 	}
 
+	/** A fan's first bearing.  INTERACT's turns up in portrait, where it sits in the corner. */
+	private float fanA0(RhCommands.Hub hub)
+	{
+		return hub.fanA0 + (mPortraitLayout && hub == RhCommands.HUB_INTERACT ? P_INTERACT_FAN_TURN : 0f);
+	}
+
 	private void addHub(final RhCommands.Hub hub)
 	{
 		final HubView hv = new HubView();
@@ -1700,7 +1882,7 @@ public class RhOverlay extends FrameLayout
 		for(int i = 0; i < hub.fan.length && i < FAN_SIZE.length; i++)
 		{
 			final int index = i;
-			double a = Math.toRadians(hub.fanA0 + i * hub.fanStep);
+			double a = Math.toRadians(fanA0(hub) + i * hub.fanStep);
 			float sx = offsetX(hubCx(hub), (float)Math.cos(a) * hub.fanRadius);
 			float sy = hubCy(hub) - (float)Math.sin(a) * hub.fanRadius;
 
@@ -1813,7 +1995,8 @@ public class RhOverlay extends FrameLayout
 		{
 			// The inventory bar: the matrix's full width, half a cell tall, on top.
 			hv.face.sub(hubIdleSub(hub), hubSubSize(hub), RhTheme.TEXT, 0.75f);
-			addView(hv.face, mTerm ? boxTR(mPadBox, T_EQ_BAR, termInner(), termEqTop())
+			addView(hv.face, mPortraitLayout ? pCell(0, 2)
+			               : mTerm ? boxTR(mPadBox, T_EQ_BAR, termInner(), termEqTop())
 			                       : boxTR(EQ_W, EQ_BAR, EQ_RIGHT, EQ_TOP));
 		}
 		else
@@ -1929,8 +2112,16 @@ public class RhOverlay extends FrameLayout
 				slot.defaultCap(RhTheme.role(RhTheme.ROLE_INVENTORY));
 				float cellW = (mPadBox - 2 * T_GAP) / 3f;
 				float right = termInner() + (2 - col) * (cellW + T_GAP);
-				float top = termEqTop() + T_EQ_BAR + 8f + row * (T_EQ_CELL_H + T_GAP);
-				hv.satellites.addView(slot, boxTR(cellW, T_EQ_CELL_H, right, top));
+				if(mPortraitLayout)
+				{
+					// Portrait: the two rows over the action pad, put-on verbs on top.
+					hv.satellites.addView(slot, box(cellW, P_ROW_H, right, pRowBottom(1 - row), true));
+				}
+				else
+				{
+					float top = termEqTop() + T_EQ_BAR + 8f + row * (T_EQ_CELL_H + T_GAP);
+					hv.satellites.addView(slot, boxTR(cellW, T_EQ_CELL_H, right, top));
+				}
 			}
 			else
 			{
@@ -2049,6 +2240,14 @@ public class RhOverlay extends FrameLayout
 	 */
 	private LayoutParams termAttackSlot(int i)
 	{
+		if(mPortraitLayout)
+		{
+			// Portrait: QUIVER beside DROP as in landscape; FIRE and ZAP head the
+			// action pad.
+			if(i == 0)
+				return boxLB(T_KEY, P_ROW_H, termInner() + mPadBox - T_KEY, pRowBottom(0));
+			return pCell(i - 1, 0);
+		}
 		if(i == 0)
 			return boxLB(T_KEY, T_KEY, termInner() + mPadBox - T_KEY, termRow3Bottom());
 		float left = termDeckLeft() + mPadCell + T_GAP + (i - 1) * (T_SLOT_W + T_GAP);
@@ -2676,7 +2875,7 @@ public class RhOverlay extends FrameLayout
 		protected void onDraw(Canvas canvas)
 		{
 			canvas.drawColor(0x9e05070d);
-			float y = mTerm ? RhTheme.dp(getContext(), RhCase.glassTop() + 14f)
+			float y = mTerm ? RhTheme.dp(getContext(), glassTopDp() + 14f)
 			                : RhTheme.rawDp(getContext(), RhTheme.HEADER_HEIGHT + 16f);
 			// On a pill of its own: the hint sits over the message lines.
 			Paint.FontMetrics fm = mHint.getFontMetrics();
@@ -2765,7 +2964,7 @@ public class RhOverlay extends FrameLayout
 		{
 			// Across the top of the map, under the message lines.
 			lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-			lp.topMargin = RhTheme.dpi(mContext, RhCase.glassTop() + RhScreen.MSG_BAND + 6f);
+			lp.topMargin = RhTheme.dpi(mContext, glassTopDp() + RhScreen.MSG_BAND + 6f);
 		}
 		else
 		{
@@ -2967,6 +3166,10 @@ public class RhOverlay extends FrameLayout
 
 	private LayoutParams termStripBox(int i)
 	{
+		// Portrait: LOOK ends the action pad's top row, the context key is its
+		// centre, and SEARCH sits under it, beside INTERACT.
+		if(mPortraitLayout)
+			return i == 0 ? pCell(2, 0) : i == 1 ? pCell(1, 1) : pCell(1, 2);
 		if(i == 2)
 			return box(mPadBox - T_RIGHT_COL - T_GAP, T_SEARCH_H,
 			           termInner() + T_RIGHT_COL + T_GAP, termInner(), true);
@@ -2975,6 +3178,11 @@ public class RhOverlay extends FrameLayout
 
 	private LayoutParams termChipBox(int i)
 	{
+		if(mPortraitLayout)
+		{
+			int row = i == 0 ? 0 : i == 1 ? 1 : 2;
+			return box(CHIP_ROW_W, CHIP_SIZE, termInner(), pCellBottom(row) + mPadCell + CHIP_GAP_ABOVE, true);
+		}
 		if(i == 2)
 			return box(CHIP_ROW_W, CHIP_SIZE, termInner(), termInner() + T_SEARCH_H + CHIP_GAP_ABOVE, true);
 		return box(CHIP_ROW_W, CHIP_SIZE, termStripRight(i) + termStripW() - CHIP_ROW_W,
@@ -3005,9 +3213,11 @@ public class RhOverlay extends FrameLayout
 		mCandRadial.removeAllViews();
 
 		int n = mCtxCandidates.size();
-		float cx = mTerm ? -(termStripRight(1) + termStripW() / 2f)
+		float cx = mPortraitLayout ? pCellCx(1)
+		         : mTerm ? -(termStripRight(1) + termStripW() / 2f)
 		                 : CTX_STRIP_LEFT + CTX_STRIP_W + CTX_STRIP_GAP + CTX_STRIP_W / 2f;
-		float cy = mTerm ? termDeckBottom() + RhCase.DECK_KEY / 2f
+		float cy = mPortraitLayout ? pCellCy(1)
+		         : mTerm ? termDeckBottom() + RhCase.DECK_KEY / 2f
 		                 : CTX_STRIP_BOTTOM + CTX_STRIP_H[1] / 2f;
 		float spread = n <= 2 ? 60f : n == 3 ? 45f : 36f;
 		float a0 = 270f - spread * (n - 1) / 2f;
@@ -3288,7 +3498,12 @@ public class RhOverlay extends FrameLayout
 				.label("SACRIFICE", 7.5f, 0.02f)
 				.sub("hold · pray", 7f, RhTheme.TEXT, 0.75f);
 
-		if(mTerm)
+		if(mPortraitLayout)
+		{
+			// Portrait: the left bank's top row, over DROP.
+			addView(f, boxLB(T_KEY, P_ROW_H, termInner(), pRowBottom(1)));
+		}
+		else if(mTerm)
 		{
 			// The left bank's second row, still the far end of it from the thumb.
 			addView(f, boxTL(T_KEY, T_KEY, termInner(), termRow2Top()));
@@ -3362,11 +3577,17 @@ public class RhOverlay extends FrameLayout
 					.face(RhTheme.G90)
 					.label(spec.label, 9f, 0.06f);
 			float w = mTerm ? termW : spec.w;
-			LayoutParams lp = new LayoutParams(RhTheme.dpi(mContext, w),
-			                                   RhTheme.dpi(mContext, mTerm ? T_ROW1_H : spec.h));
-			lp.gravity = Gravity.TOP | Gravity.RIGHT;
-			lp.rightMargin = RhTheme.dpi(mContext, right);
-			lp.topMargin   = RhTheme.dpi(mContext, mTerm ? termInner() : 46f);
+			LayoutParams lp;
+			if(mPortraitLayout)
+				lp = pFnBox(2 + i);   // portrait: the key row's middle four
+			else
+			{
+				lp = new LayoutParams(RhTheme.dpi(mContext, w),
+				                      RhTheme.dpi(mContext, mTerm ? T_ROW1_H : spec.h));
+				lp.gravity = Gravity.TOP | Gravity.RIGHT;
+				lp.rightMargin = RhTheme.dpi(mContext, right);
+				lp.topMargin   = RhTheme.dpi(mContext, mTerm ? termInner() : 46f);
+			}
 			addView(f, lp);
 			bindTap(f, new Runnable()
 			{
@@ -3705,7 +3926,9 @@ public class RhOverlay extends FrameLayout
 		@Override
 		protected void onDraw(Canvas canvas)
 		{
-			float cx = RhTheme.dp(getContext(), hubCx(RhCommands.HUB_ATTACK));
+			// A negative centre is measured from the right -- OFFENSE's, in portrait.
+			float hx = hubCx(RhCommands.HUB_ATTACK);
+			float cx = hx >= 0 ? RhTheme.dp(getContext(), hx) : getWidth() - RhTheme.dp(getContext(), -hx);
 			float cy = getHeight() - RhTheme.dp(getContext(), hubCy(RhCommands.HUB_ATTACK));
 			float rIn  = RhTheme.dp(getContext(), hubW(RhCommands.HUB_ATTACK) / 2f + 5f);
 			float rOut = RhTheme.dp(getContext(), RhCommands.ATK_SLOT_RADIUS + SAT_SIZE / 2f + 12f);
@@ -4074,13 +4297,15 @@ public class RhOverlay extends FrameLayout
 	}
 
 	/**
-	 * The overlay shows only when it is switched on and the phone is landscape.
-	 * Portrait still runs the classic ForkFront panels: the handoff's portrait
-	 * layout predates the five-hub model and has not been brought in line with it.
+	 * The overlay shows when it is switched on and has a layout for the way the
+	 * phone is held: landscape always, portrait in the terminal style (the P_
+	 * constants; 2026-09-24).  Lucas turns the phone mid-game -- Sokoban plays
+	 * better upright -- so a rotation rebuilds it in place (onSizeChanged) and
+	 * the game never notices.
 	 */
 	private void applyVisibility()
 	{
-		setVisibility(RhPrefs.enabled() && !mPortrait && !mSuppressed ? VISIBLE : GONE);
+		setVisibility(RhPrefs.enabled() && hasLayoutFor(mPortrait) && !mSuppressed ? VISIBLE : GONE);
 		// The terminal frames the map only while it is showing.
 		mHost.mapAreaChanged();
 	}

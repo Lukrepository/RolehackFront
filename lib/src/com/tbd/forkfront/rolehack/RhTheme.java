@@ -131,6 +131,15 @@ public final class RhTheme
 	public static final int[] GC_DARK   = { 0xff4a4c6e, 0xff34365a, 0xff3a3c62, 0xff2b2d4f, 0xff1a1b36,
 	                                        0xffeef0ff, 0xffffd21f, 0xffffd21f };
 	public static final int[] GC_TEAL   = withLegend(GC_DARK, 0xff5fe3d2);
+	/**
+	 * Long rest: Rest's orange, darker (Lucas, 2026-09-24), so the two read apart
+	 * when the swipe brings one in over the other.  Legends stay dark on both,
+	 * about 4.5:1 or better against the face.
+	 */
+	public static final int[] CAP_AMBER_DARK = { 0xffe08c3a, 0xffc2661a, 0xffc86e22, 0xffa85716, 0xff7c3e0c,
+	                                             0xff2a1503, 0xffffe8c8, 0xff4a2406 };
+	public static final int[] GC_ORANGE_DARK = { 0xffe0701f, 0xffc05200, 0xffb84e00, 0xff9a4000, 0xff6a2a00,
+	                                             0xff2a1000, 0xfffff0dc, 0xff4a1e00 };
 	public static final int[] GC_ROSE   = withLegend(GC_DARK, 0xffff8fc0);
 	public static final int[] GC_LAV    = withLegend(GC_DARK, 0xffc8bcff);
 
@@ -155,6 +164,12 @@ public final class RhTheme
 		if(face == PINK)   return gc ? GC_ROSE : CAP_ROSE;
 		if(face == VIOLET) return gc ? GC_LAV  : CAP_LAV;
 		return gc ? GC_DARK : CAP_DARK;
+	}
+
+	/** Long rest's keycap in the current skin. */
+	public static int[] longRestCap()
+	{
+		return sStyle == STYLE_GAMECUBE ? GC_ORANGE_DARK : CAP_AMBER_DARK;
 	}
 
 	// Key roles: keys a skin may colour on their own rather than by face colour.

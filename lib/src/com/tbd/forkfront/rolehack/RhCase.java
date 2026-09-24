@@ -42,6 +42,13 @@ public class RhCase extends View
 	private static final float HOOD_R   = 12f;
 	private static final float WELL_R   = 8f;
 
+	/**
+	 * Portrait (2026-09-24): width is short, so the hood's moulding round the
+	 * glass is thinner than landscape's HOOD_SIDE and HOOD_TOP.
+	 */
+	public static final float P_HOOD_SIDE = 8f;
+	public static final float P_HOOD_TOP  = 10f;
+
 	/** Caseless: the lamps' strip across the top, above the message band. */
 	public static final float LAMP_STRIP = 22f;
 
@@ -65,19 +72,52 @@ public class RhCase extends View
 		return MARGIN + DECK_H + MARGIN + (RhTheme.caseless() ? 0f : LIP);
 	}
 
+	/** Portrait: the glass runs the screen's width, inside the hood. */
+	public static float portraitGlassSide()
+	{
+		return MARGIN + (RhTheme.caseless() ? 0f : P_HOOD_SIDE);
+	}
+
+	public static float portraitGlassTop()
+	{
+		return MARGIN + (RhTheme.caseless() ? LAMP_STRIP : P_HOOD_TOP);
+	}
+
+	/** Portrait: the glass stands on the controls, which rise this far from the bottom edge. */
+	public static float portraitGlassBottom(float controlsDp)
+	{
+		return controlsDp + (RhTheme.caseless() ? 0f : LIP);
+	}
+
 	private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 	private final Paint mText  = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
 	private final Path mPath = new Path();
 	private final RectF mLeft = new RectF(), mRight = new RectF(), mDeck = new RectF();
 	private final RectF mHood = new RectF(), mGlass = new RectF(), mRect = new RectF();
 
-	private float mBankDp;
+	private final float mBankDp;
+	private final boolean mPortrait;
+	private final float mWellHDp, mFnHDp;
 	private boolean mSearch, mArmed, mMore;
 
 	public RhCase(Context context, float bankDp)
 	{
+		this(context, bankDp, false, 0f, 0f);
+	}
+
+	/**
+	 * Portrait (Lucas, 2026-09-24): the glass across the top, the key row under
+	 * it in the deck's well, and the two banks side by side along the bottom --
+	 * see RhOverlay's P_ constants.  wellHDp is the banks' height, fnHDp the key
+	 * row's.
+	 */
+	public RhCase(Context context, float bankDp, boolean portrait, float wellHDp, float fnHDp)
+	{
 		super(context);
 		mBankDp = bankDp;
+		mPortrait = portrait;
+		mWellHDp = wellHDp;
+		mFnHDp = fnHDp;
 		mText.setTypeface(RhTheme.capFont(context));
 	}
 
@@ -108,6 +148,17 @@ public class RhCase extends View
 	{
 		float w = getWidth(), h = getHeight();
 		float m = dp(MARGIN), bank = dp(mBankDp), deck = dp(DECK_H);
+		if(mPortrait)
+		{
+			float well = dp(mWellHDp), fn = dp(mFnHDp);
+			mLeft.set(m, h - m - well, m + bank, h - m);
+			mRight.set(w - m - bank, h - m - well, w - m, h - m);
+			mDeck.set(m, mLeft.top - m - fn, w - m, mLeft.top - m);
+			mHood.set(m, m, w - m, mDeck.top - m);
+			mGlass.set(mHood.left + dp(P_HOOD_SIDE), mHood.top + dp(P_HOOD_TOP),
+					   mHood.right - dp(P_HOOD_SIDE), mHood.bottom - dp(LIP));
+			return;
+		}
 		mLeft.set(m, m, m + bank, h - m);
 		mRight.set(w - m - bank, m, w - m, h - m);
 		mDeck.set(m + bank + m, h - m - deck, w - m - bank - m, h - m);
