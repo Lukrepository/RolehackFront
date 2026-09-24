@@ -5,16 +5,17 @@ import android.content.SharedPreferences;
 /**
  * The persisted half of the interface's state.
  *
- * Three of these change the whole interface and were the player's own asks:
- * label mode, the key flash, and which movement pad is fitted.  All three pads
- * occupy the same anchor, so switching moves nothing else on screen.
+ * Two of these change the whole interface and were the player's own asks:
+ * label mode and the key flash.  The movement pad setting (ring, cross, puck)
+ * is gone: only the numpad was ever built, and a ring would turn eight
+ * discrete keys into 45-degree wedges, the width Lai & Zhang found error-prone
+ * (Lucas, 2026-09-24: an odd fit for an eight-way, turn-based, high-stakes game).
  */
 public final class RhPrefs
 {
 	private RhPrefs() {}
 
 	public enum LabelMode { WORDS, BOTH, KEYS }
-	public enum PadVariant { NUMPAD, RING, PUCK }
 
 	/**
 	 * How much of the status the terminal's glass shows (Lucas, 2026-09-24): all
@@ -35,7 +36,6 @@ public final class RhPrefs
 	public static final String KEY_ENABLED     = "rhEnabled";
 	public static final String KEY_LABEL_MODE  = "rhLabelMode";
 	public static final String KEY_KEY_FLASH   = "rhKeyFlash";
-	public static final String KEY_PAD         = "rhPad";
 	public static final String KEY_PAD_CELL    = "rhPadCell";
 	public static final String KEY_UI_SCALE    = "rhUiScale";
 	public static final String KEY_ATK_SLOTS   = "rhAtkSlots";
@@ -51,7 +51,6 @@ public final class RhPrefs
 	private static boolean sEnabled = true;
 	private static LabelMode sLabelMode = LabelMode.WORDS;
 	private static boolean sKeyFlash = true;
-	private static PadVariant sPad = PadVariant.NUMPAD;
 	private static StatusLines sStatusLines = StatusLines.FULL;
 	/**
 	 * Movement key size in design dp.  A preference rather than a constant because
@@ -96,7 +95,6 @@ public final class RhPrefs
 		sEnabled   = prefs.getBoolean(KEY_ENABLED, true);
 		sKeyFlash  = prefs.getBoolean(KEY_KEY_FLASH, true);
 		sLabelMode = parseLabelMode(prefs.getString(KEY_LABEL_MODE, "words"));
-		sPad       = parsePad(prefs.getString(KEY_PAD, "numpad"));
 		sStatusLines = parseStatusLines(prefs.getString(KEY_STATUS_LINES, "full"));
 		sPadCell   = parseInt(prefs.getString(KEY_PAD_CELL, null),
 		                      PAD_CELL_DEFAULT, PAD_CELL_MIN, PAD_CELL_MAX);
@@ -146,7 +144,6 @@ public final class RhPrefs
 	public static boolean enabled()      { return sEnabled; }
 	public static LabelMode labelMode()  { return sLabelMode; }
 	public static boolean keyFlash()     { return sKeyFlash; }
-	public static PadVariant pad()       { return sPad; }
 	public static StatusLines statusLines() { return sStatusLines; }
 	public static int padCell()          { return sPadCell; }
 
@@ -326,12 +323,4 @@ public final class RhPrefs
 		return StatusLines.FULL;
 	}
 
-	private static PadVariant parsePad(String v)
-	{
-		if("ring".equals(v))
-			return PadVariant.RING;
-		if("puck".equals(v))
-			return PadVariant.PUCK;
-		return PadVariant.NUMPAD;
-	}
 }

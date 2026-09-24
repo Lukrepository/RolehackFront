@@ -2047,10 +2047,17 @@ public class RhOverlay extends FrameLayout
 		execute(item, from);
 	}
 
-	/** Fight, Kick, Fire and Throw take a direction; Zap, Cast, Swap and Two-weapon do not. */
+	/**
+	 * Only Fight is armed.  `F` is a prefix: the core reads the direction after it
+	 * with no prompt, so the interface has to ask.  Kick, Fire and Throw ask for
+	 * themselves -- Throw, and Fire with nothing quivered, for the item first --
+	 * so they go bare and the pad answers the core's prompt, as it does for Open
+	 * (Lucas, 2026-09-24: an armed Kick moved the hero instead, and an armed Throw
+	 * asked for a direction before its item and again after).
+	 */
 	private static boolean needsDirection(String key)
 	{
-		return "F".equals(key) || "^D".equals(key) || "f".equals(key) || "t".equals(key);
+		return "F".equals(key);
 	}
 
 	// ____________________________________________________________________________________

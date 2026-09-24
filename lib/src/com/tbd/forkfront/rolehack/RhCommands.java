@@ -393,7 +393,9 @@ public final class RhCommands
 		-58f, 62f, 76f, 76f,
 		null, 0f, 0f, 0f, 0f, -1f,
 		9.5f, 0.04f, 0f, 0f,
-		258f, -24f, 118f, false);
+		// 30 degrees apart since Open left (Lucas, 2026-09-24: four nodes felt
+		// crowded at the old 24).
+		258f, -30f, 118f, false);
 
 	/**
 	 * The three commands you fire under pressure -- a potion of full healing, a

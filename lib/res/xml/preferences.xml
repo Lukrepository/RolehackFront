@@ -181,15 +181,6 @@
 				android:key="rhKeyFlash"/>
 
 			<ListPreference
-				android:title="Movement pad"
-				android:summary="Which pad is fitted at the movement anchor"
-				android:persistent="true"
-				android:key="rhPad"
-				android:defaultValue="ring"
-				android:entries="@array/rhPadNames"
-				android:entryValues="@array/rhPadValues"/>
-
-			<ListPreference
 				android:title="Movement key size"
 				android:summary="Bigger keys mis-tap less; smaller keys need less thumb travel"
 				android:persistent="true"
