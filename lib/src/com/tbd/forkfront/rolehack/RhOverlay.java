@@ -31,6 +31,15 @@ import java.util.List;
  *
  * This class owns geometry and gesture state only.  It emits raw NetHack key
  * sequences through {@link Host} and never inspects game state directly.
+ *
+ * Two styles share every control and gesture (RhTheme.terminal()).  The
+ * colourful style floats the controls over a full-bleed map.  The terminal
+ * style (2026-09-23, from the "Rolehack Terminal Mode" design canvas) sets
+ * them as keycaps in the three wells of a terminal case -- a bank each side
+ * and a deck under the screen -- and frames the map as a CRT: see RhCase for
+ * the frame, RhScreen for the glass, and the T_ constants below for where
+ * each key sits.  Positions are kept to the same thumb as in the colourful
+ * style, so switching styles does not retrain a hand.
  */
 public class RhOverlay extends FrameLayout
 {
@@ -48,6 +57,9 @@ public class RhOverlay extends FrameLayout
 		 * IME, which is what makes Ctrl and Meta reachable at all.
 		 */
 		void toggleKeyboard();
+
+		/** Where the map should centre has changed; ask {@link #mapArea()} again. */
+		void mapAreaChanged();
 	}
 
 	// Gesture timings, from the handoff's "Interactions".
@@ -146,19 +158,55 @@ public class RhOverlay extends FrameLayout
 
 	/** Satellite and pinned-point faces. */
 	private static final float SAT_SIZE = 44f;
-	/** Opening a fan or radial drops the other hubs on that side to this opacity. */
-	private static final float DIM_ALPHA = 0.12f;
+
+	/*
+	 * Terminal style geometry, design dp, from the design canvas.  The wells are
+	 * RhCase's; each bank is the numpad's width plus its well, so the banks grow
+	 * and shrink with the Movement key size setting and every key inside them is
+	 * laid out against that width.
+	 *
+	 *   left bank     REST ×20 | MSGS         right bank   MENU WORLD GAME KEYS
+	 *                 SACRIFICE | macro                    INVENTORY
+	 *                 DROP | pinned slot 1                 Wear   Put on  Wield
+	 *                 numpad                               Take off Remove Swap
+	 *                                                      spare | EAT QUAFF READ
+	 *   deck          OFFENSE, pinned slots 2-3,           spare |
+	 *                 LOOK, context                        SEARCH | INTERACT
+	 */
+	private static final float T_KEY       = 58f;  // the square keys in the banks
+	private static final float T_GAP       = 6f;
+	private static final float T_ROW_GAP   = 11f;
+	private static final float T_ROW1_H    = 40f;  // REST/MSGS and MENU..KEYS
+	private static final float T_SLOT_W    = 50f;  // pinned slots 2-3 on the deck
+	private static final float T_STRIP_W   = 116f; // LOOK and the context key
+	private static final float T_RIGHT_COL = 88f;  // EAT/QUAFF/READ over INTERACT
+	private static final float T_INTERACT_H = 105f;
+	private static final float T_CONSUME_H  = 68f;
+	private static final float T_SEARCH_H   = 63f;
+	private static final float T_SPARE_H    = 52f;
+	private static final float T_EQ_BAR     = 28f;
+	private static final float T_EQ_CELL_H  = 48f;
 
 	private final Activity mContext;
 	private final Host mHost;
 	private final Handler mHandler = new Handler();
 
 	private RhFlash mFlash;
+	/** Terminal style, fixed for the life of one build(). */
+	private boolean mTerm;
+	private RhCase mCase;
+	private RhScreen mScreen;
+	/** The left bank's middle row (SACRIFICE, the macro), centred once the height is known. */
+	private final List<View> mTermRow2 = new ArrayList<View>();
 	private RhHeader mHeader;
 	private RhStatusPanel mStatusPanel;
 	private RhMessagePanel mMessagePanel;
 	private RhFace mRestFace;
 	private ViewGroup mRestChips;
+	/** Terminal style: Long rest, scrolled out of sight under Rest (RhScrollWell). */
+	private RhFace mLongFace;
+	private ViewGroup mLongChips;
+	private RhScrollWell mRestWell;
 	private String mMessageText = "";
 	private int mMessageMore;
 	private RhStatus mStatus;
@@ -208,6 +256,19 @@ public class RhOverlay extends FrameLayout
 
 	private RhCommands.Item mAssign;
 	private int mAssignTarget;
+	/** With ASSIGN_FAN: the hub whose fan is taking the command. */
+	private String mAssignHub;
+	/**
+	 * A hub's own fan, taking a command into one of its nodes (2026-09-24).  From
+	 * the drawer that hub opened; the fan opens with its nodes lit.
+	 */
+	private static final int ASSIGN_FAN = 3;
+	/** The hub whose tap or hold opened the drawer, or null for MENU / WORLD / GAME. */
+	private RhCommands.Hub mDrawerHub;
+	/** Each fan hub's nodes, as keys (RhPrefs.fanSlots). */
+	private final java.util.Map<String, String[]> mFanKeys = new java.util.HashMap<String, String[]>();
+	/** The modal layer under anything open; see syncModal(). */
+	private ModalScrim mScrim;
 
 	private boolean assignAccepts(boolean attackGroup)
 	{
@@ -268,14 +329,43 @@ public class RhOverlay extends FrameLayout
 		// Pinned slots persist, so they are the first thing the layout needs.
 		mAtkSlotKeys   = RhPrefs.atkSlots().clone();
 		mEquipSlotKeys = RhPrefs.equipSlots().clone();
+		mFanKeys.clear();
+		for(RhCommands.Hub h : RhCommands.HUBS)
+		{
+			String[] keys = RhPrefs.fanSlots(h.id);
+			if(keys != null)
+				mFanKeys.put(h.id, keys.clone());
+		}
 
-		buildHeader();
-		buildStatusPanel();
+		mTerm = RhTheme.terminal();
+		mHeader = null;
+		mStatusPanel = null;
+		mBadges = null;
+		mMessagePanel = null;
+		mCase = null;
+		mScreen = null;
+		mTermRow2.clear();
+		mLongFace = null;
+		mLongChips = null;
+		mRestWell = null;
+
+		// The terminal's header, status and badges are lines on its glass, so the
+		// frame goes in first -- lowest in z -- and those three are not built.
+		if(mTerm)
+			buildTerminalFrame();
+		else
+		{
+			buildHeader();
+			buildStatusPanel();
+		}
 		buildNumpad();
 		buildContextStrip();
 		buildPrayColumn();
-		buildBadgeColumn();
+		if(!mTerm)
+			buildBadgeColumn();
 		buildTopRight();
+		if(mTerm)
+			buildRightMacros();
 
 		// The radial containers must exist before the hubs, because building EQUIP
 		// populates the equip radial as it goes.
@@ -285,10 +375,15 @@ public class RhOverlay extends FrameLayout
 
 		buildHubs();
 		buildArmedBanner();
+
+		mScrim = new ModalScrim(mContext);
+		mScrim.setVisibility(GONE);
+		addView(mScrim, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 		// Above the hub layer: the fans and radials sweep up through this band, and
 		// the message that prompted an action must not be hidden by the control
 		// answering it.
-		buildMessagePanel();
+		if(!mTerm)
+			buildMessagePanel();
 		buildMessageHistoryButton();
 
 		mDrawer = new RhDrawer(mContext, new RhDrawer.Listener()
@@ -303,10 +398,13 @@ public class RhOverlay extends FrameLayout
 			@Override
 			public void onItemPin(RhCommands.Item item)
 			{
+				// Where it can go depends on who opened the drawer: OFFENSE's
+				// points, the equip cells, or the opening hub's own fan.
+				RhCommands.Hub from = mDrawerHub;
 				closeDrawer();
 				if(item == RhCommands.SEARCH_MODE)
 					return;
-				pickUp(item, ASSIGN_BOTH);
+				pickUp(item, assignTargetFor(from), from);
 			}
 
 			@Override
@@ -320,6 +418,199 @@ public class RhOverlay extends FrameLayout
 
 		mFlash = new RhFlash(mContext);
 		addView(mFlash, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+
+		if(mTerm)
+			post(new Runnable() { @Override public void run() { placeTermRow2(); } });
+	}
+
+	// ____________________________________________________________________________________
+	// The terminal frame.  The case draws the wells and the hood and swallows
+	// every touch off the glass; the screen draws messages and status on the
+	// glass itself.  The map underneath is told to centre between the screen's
+	// two bands -- see mapArea().
+
+	private void buildTerminalFrame()
+	{
+		mCase = new RhCase(mContext, termBank());
+		addView(mCase, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+		mScreen = new RhScreen(mContext, new RhScreen.Listener()
+		{
+			@Override
+			public void onHistory()
+			{
+				execute(RhCommands.PREV_MSGS, mScreen);
+			}
+		});
+		LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+		lp.leftMargin   = RhTheme.dpi(mContext, RhCase.glassSide(termBank()));
+		lp.rightMargin  = lp.leftMargin;
+		lp.topMargin    = RhTheme.dpi(mContext, RhCase.glassTop());
+		lp.bottomMargin = RhTheme.dpi(mContext, RhCase.glassBottom());
+		addView(mScreen, lp);
+		if(mStatus != null)
+			mScreen.setStatus(mStatus);
+		mScreen.setMessage(mMessageText, mMessageMore);
+		updateLamps();
+	}
+
+	/**
+	 * Terminal style: where the map should centre, in this view's coordinates --
+	 * the glass between the message and status bands, 2dp in from its sides.
+	 * Null when the map should have the whole view area, as it always did: the
+	 * colourful style, portrait, or the overlay stood down for the keyboard.
+	 */
+	public android.graphics.Rect mapArea()
+	{
+		if(!mTerm || getVisibility() != VISIBLE || getWidth() == 0 || getHeight() == 0)
+			return null;
+		int side   = RhTheme.dpi(mContext, RhCase.glassSide(termBank()) + 2f);
+		int top    = RhTheme.dpi(mContext, RhCase.glassTop() + RhScreen.MSG_BAND);
+		int bottom = RhTheme.dpi(mContext, RhCase.glassBottom() + RhScreen.STATUS_BAND);
+		if(getWidth() - 2 * side <= 0 || getHeight() - top - bottom <= 0)
+			return null;
+		return new android.graphics.Rect(side, top, getWidth() - side, getHeight() - bottom);
+	}
+
+	@Override
+	protected void onSizeChanged(int w, int h, int oldw, int oldh)
+	{
+		super.onSizeChanged(w, h, oldw, oldh);
+		mHost.mapAreaChanged();
+		if(mTerm)
+		{
+			// The case is laid out against the screen it is on: rebuild to fit it.
+			// Posted, because children cannot be re-added mid-layout.
+			post(new Runnable()
+			{
+				@Override
+				public void run()
+				{
+					updateFitLimit();
+					rebuild();
+				}
+			});
+		}
+	}
+
+	/**
+	 * The terminal case has to fit the screen: both banks' full height, and a
+	 * glass wide enough to play on.  On anything smaller than the design size
+	 * (896 x 415 dp with 58dp keys) every key, the case and the screen text
+	 * shrink together; on anything larger the keys stay put and the glass takes
+	 * the room.  FIT_FLOOR stops the shrinking before keys fall well under the
+	 * touch floor -- a screen that small overflows instead.
+	 */
+	private static final float FIT_FLOOR = 0.7f;
+	/** The narrowest the hood may get, glass and its moulding together. */
+	private static final float T_MIN_HOOD = 400f;
+
+	private void updateFitLimit()
+	{
+		if(!RhTheme.terminal())
+		{
+			RhTheme.setFitLimit(Float.MAX_VALUE);
+			return;
+		}
+		if(getWidth() == 0 || getHeight() == 0)
+			return;
+		float density = getResources().getDisplayMetrics().density;
+		float wDp = getWidth() / density, hDp = getHeight() / density;
+		float limit = Math.min(wDp / termNeedW(), hDp / termNeedH());
+		RhTheme.setFitLimit(Math.max(FIT_FLOOR, limit));
+	}
+
+	/** The design height the tallest bank needs, at scale 1. */
+	private float termNeedH()
+	{
+		float left = 2 * termInner() + T_ROW1_H + 2 * T_KEY + 3 * T_ROW_GAP + mPadBox;
+		float right = 2 * termInner() + T_ROW1_H + 10f + T_EQ_BAR + 8f + 2 * T_EQ_CELL_H + T_GAP
+				+ 8f + 2 * (T_SPARE_H + T_GAP) + T_SEARCH_H;
+		return Math.max(left, right);
+	}
+
+	/** The design width both banks and the narrowest usable hood need, at scale 1. */
+	private float termNeedW()
+	{
+		return 2 * (RhCase.MARGIN + termBank() + RhCase.MARGIN) + T_MIN_HOOD;
+	}
+
+	/**
+	 * The left bank's top row hangs from the top and the pad and the row above it
+	 * stand on the bottom, so a taller screen opens a gap between them -- 28dp on
+	 * Lucas's phone with its status bar hidden.  The middle row takes the centre
+	 * of it rather than leaving it all on one side.
+	 */
+	private void placeTermRow2()
+	{
+		if(!mTerm || getHeight() == 0)
+			return;
+		float hDp = getHeight() / RhTheme.dp(mContext, 1f);
+		float row1Bottom = termInner() + T_ROW1_H;
+		float row3Top = hDp - termRow3Bottom() - T_KEY;
+		float top = Math.max(termRow2Top(), (row1Bottom + row3Top - T_KEY) / 2f);
+		int px = RhTheme.dpi(mContext, top);
+		for(View v : mTermRow2)
+		{
+			LayoutParams lp = (LayoutParams)v.getLayoutParams();
+			if(lp != null && lp.topMargin != px)
+			{
+				lp.topMargin = px;
+				v.setLayoutParams(lp);
+			}
+		}
+	}
+
+	/** The mode lamps on the hood's lip; see RhCase. */
+	private void updateLamps()
+	{
+		if(mCase != null)
+			mCase.setLamps(RhPrefs.searchMode(), mArmed != null, mMessageMore > 0);
+	}
+
+	/**
+	 * Macros 2 and 3, in the two keys above Search (Lucas, 2026-09-24).  The
+	 * canvas left them blank, as spare keys; macros are what he wanted there.
+	 * The upper key is M2 and the lower M3, so the three read in order.
+	 */
+	private void buildRightMacros()
+	{
+		float colW = mPadBox - T_RIGHT_COL - T_GAP;
+		float right = termInner() + T_RIGHT_COL + T_GAP;
+		float bottom = termInner() + T_SEARCH_H + T_GAP;
+		for(int i = 0; i < 2; i++)
+		{
+			int slot = 2 - i;
+			if(slot >= RhPrefs.MACRO_SLOTS)
+				continue;
+			addView(buildMacroFace(slot), box(colW, T_SPARE_H, right, bottom + i * (T_SPARE_H + T_GAP), true));
+		}
+	}
+
+	// Terminal geometry, derived.  Every value is design dp from the nearest edge.
+
+	/** A well's inner edge, from the screen edge. */
+	private float termInner()      { return RhCase.MARGIN + RhCase.WELL_PAD; }
+	/** A bank's width: the numpad and its well. */
+	private float termBank()       { return mPadBox + 2 * RhCase.WELL_PAD; }
+	/** The wide keys that share a row with one square key: 126 beside a 190 pad. */
+	private float termWideKey()    { return mPadBox - T_KEY - T_GAP; }
+	private float termRow2Top()    { return termInner() + T_ROW1_H + T_ROW_GAP; }
+	/** The bottom of the left bank's third row: the row just above the pad. */
+	private float termRow3Bottom() { return padBottom() + mPadBox + T_ROW_GAP; }
+	/** The deck's inner left edge; the same distance from the right is its inner right edge. */
+	private float termDeckLeft()   { return RhCase.MARGIN + termBank() + RhCase.MARGIN + RhCase.WELL_PAD; }
+	private float termDeckBottom() { return RhCase.MARGIN + (RhCase.DECK_H - RhCase.DECK_KEY) / 2f; }
+	private float termEqTop()      { return termInner() + T_ROW1_H + 10f; }
+
+	/** A box against the top-left corner. */
+	private LayoutParams boxTL(float wDp, float hDp, float leftDp, float topDp)
+	{
+		LayoutParams lp = new LayoutParams(RhTheme.dpi(mContext, wDp), RhTheme.dpi(mContext, hDp));
+		lp.gravity = Gravity.TOP | Gravity.LEFT;
+		lp.leftMargin = RhTheme.dpi(mContext, leftDp);
+		lp.topMargin = RhTheme.dpi(mContext, topDp);
+		return lp;
 	}
 
 	// ____________________________________________________________________________________
@@ -391,13 +682,6 @@ public class RhOverlay extends FrameLayout
 	 */
 	private void buildMessageHistoryButton()
 	{
-		LinearLayout group = new LinearLayout(mContext);
-		group.setOrientation(LinearLayout.HORIZONTAL);
-		LayoutParams glp = new LayoutParams(LayoutParams.WRAP_CONTENT,
-		                                    RhTheme.rawDpi(mContext, RhTheme.HEADER_HEIGHT));
-		glp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-		addView(group, glp);
-
 		int h = RhTheme.rawDpi(mContext, RhTheme.HEADER_HEIGHT);
 
 		/*
@@ -408,17 +692,15 @@ public class RhOverlay extends FrameLayout
 		 */
 		mRestFace = new RhFace(mContext).radius(4f).face(RhTheme.A90)
 				.textColor(RhTheme.BADGE_TEXT);
-		group.addView(mRestFace, new LinearLayout.LayoutParams(
-				RhTheme.rawDpi(mContext, 78f), h));
 		bindHold(mRestFace, CHIP_HOLD_MS,
-			new Runnable() { @Override public void run() { openRestChips(); } },
+			new Runnable() { @Override public void run() { openRestChips(RhCommands.CTX_REST); } },
 			new Runnable()
 			{
 				@Override
 				public void run()
 				{
 					closeChips();
-					runAction(RhCommands.CTX_REST, mRestFace);
+					runAction(RhCommands.CTX_REST, mRestWell != null ? mRestWell : mRestFace);
 				}
 			});
 
@@ -427,11 +709,6 @@ public class RhOverlay extends FrameLayout
 				.radius(4f)
 				.label(labelFor(RhCommands.PREV_MSGS), 9f, 0.04f)
 				.sub(subKeyFor(RhCommands.PREV_MSGS), 7.5f, RhTheme.RAW_KEY, 1f);
-		LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
-				RhTheme.rawDpi(mContext, 66f), h);
-		plp.leftMargin = RhTheme.rawDpi(mContext, 6f);
-		group.addView(prev, plp);
-
 		bindTap(prev, new Runnable()
 		{
 			@Override
@@ -441,10 +718,62 @@ public class RhOverlay extends FrameLayout
 			}
 		});
 
-		for(int i = 0; i < RhPrefs.MACRO_SLOTS; i++)
-			buildMacroFace(group, i, h);
+		if(mTerm)
+		{
+			// The terminal has no header: Rest and Msgs take the left bank's top row
+			// and the macro the wide key under Msgs -- still the far end of the
+			// bank from the thumb, which is the point of where they were.
+			float in = termInner();
+			mLongFace = new RhFace(mContext).radius(4f).face(RhTheme.A90)
+					.textColor(RhTheme.BADGE_TEXT);
+			bindHold(mLongFace, CHIP_HOLD_MS,
+				new Runnable() { @Override public void run() { openRestChips(RhCommands.CTX_LONG_REST); } },
+				new Runnable()
+				{
+					@Override
+					public void run()
+					{
+						closeChips();
+						runAction(RhCommands.CTX_LONG_REST, mRestWell);
+						mRestWell.scrollTo(false);
+					}
+				});
+			// Long rest waits one line below Rest's edge, out of sight until the
+			// slot is dragged up -- gurrhack's scrolling panels, which is how Lucas
+			// kept his s300 key (see RhScrollWell).
+			mRestWell = new RhScrollWell(mContext, mRestFace, mLongFace,
+					RhTheme.dpi(mContext, T_ROW1_H), RhTheme.dpi(mContext, T_GAP));
+			addView(mRestWell, boxTL(termWideKey(), T_ROW1_H, in, in));
+			addView(prev, boxTL(T_KEY, T_ROW1_H, in + mPadBox - T_KEY, in));
+			// Macro 1 under Msgs; 2 and 3 are in the right bank (buildRightMacros).
+			RhFace macro = buildMacroFace(0);
+			addView(macro, boxTL(termWideKey(), T_KEY, in + T_KEY + T_GAP, termRow2Top()));
+			mTermRow2.add(macro);
+		}
+		else
+		{
+			LinearLayout group = new LinearLayout(mContext);
+			group.setOrientation(LinearLayout.HORIZONTAL);
+			LayoutParams glp = new LayoutParams(LayoutParams.WRAP_CONTENT, h);
+			glp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+			addView(group, glp);
 
-		buildRestChipRow();
+			group.addView(mRestFace, new LinearLayout.LayoutParams(RhTheme.rawDpi(mContext, 78f), h));
+			LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+					RhTheme.rawDpi(mContext, 66f), h);
+			plp.leftMargin = RhTheme.rawDpi(mContext, 6f);
+			group.addView(prev, plp);
+
+			// The header has room for one macro; the terminal style carries all three.
+			LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+					RhTheme.rawDpi(mContext, 78f), h);
+			lp.leftMargin = RhTheme.rawDpi(mContext, 6f);
+			group.addView(buildMacroFace(0), lp);
+		}
+
+		mRestChips = buildCountRow(RhCommands.CTX_REST);
+		if(mTerm)
+			mLongChips = buildCountRow(RhCommands.CTX_LONG_REST);
 		refreshRestFace();
 	}
 
@@ -462,7 +791,8 @@ public class RhOverlay extends FrameLayout
 	// because it can commit many turns at once: like Rest, it belongs out of
 	// thumb reach.
 
-	private final List<RhFace> mMacroFaces = new ArrayList<RhFace>();
+	/** By slot; a style that shows fewer slots leaves the rest null. */
+	private final RhFace[] mMacroFaces = new RhFace[RhPrefs.MACRO_SLOTS];
 
 	/** This turn's contextual actions, best first; the strip's middle slot shows or fans them. */
 	private final List<RhCommands.ContextAction> mCtxCandidates = new ArrayList<RhCommands.ContextAction>();
@@ -472,14 +802,13 @@ public class RhOverlay extends FrameLayout
 	private RhBadges mBadges;
 	private WedgeView mWedges;
 
-	private void buildMacroFace(LinearLayout group, final int slot, int h)
+	/** One macro face, wired and labelled; the caller places it. */
+	private RhFace buildMacroFace(final int slot)
 	{
 		final RhFace f = new RhFace(mContext).radius(4f).face(RhTheme.G90);
-		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-				RhTheme.rawDpi(mContext, 78f), h);
-		lp.leftMargin = RhTheme.rawDpi(mContext, 6f);
-		group.addView(f, lp);
-		mMacroFaces.add(f);
+		mMacroFaces[slot] = f;
+		if(mTerm)
+			f.tag("M" + (slot + 1));
 
 		bindHold(f, HUB_HOLD_MS,
 			new Runnable() { @Override public void run() { editMacro(slot); } },
@@ -501,6 +830,7 @@ public class RhOverlay extends FrameLayout
 			});
 
 		refreshMacroFace(slot);
+		return f;
 	}
 
 	private String macroLabel(int slot)
@@ -511,7 +841,9 @@ public class RhOverlay extends FrameLayout
 
 	private void refreshMacroFace(int slot)
 	{
-		RhFace f = mMacroFaces.get(slot);
+		RhFace f = mMacroFaces[slot];
+		if(f == null)
+			return;
 		if(RhPrefs.macroSet(slot))
 			f.placeholder(false)
 			 .textColor(RhTheme.TEXT)
@@ -599,30 +931,42 @@ public class RhOverlay extends FrameLayout
 	 * Rest's chips open below the header rather than above the face, since there
 	 * is nothing above it.  Centred is safe here -- the warning about centring in
 	 * the handoff was about the strip's row reaching back over the numpad, and
-	 * there is no numpad at the top of the screen.
+	 * there is no numpad at the top of the screen.  The terminal opens them under
+	 * the Rest slot instead, and Long rest's row (100 to 400) opens in the same
+	 * place.
 	 */
-	private void buildRestChipRow()
+	private ViewGroup buildCountRow(final RhCommands.ContextAction act)
 	{
-		mRestChips = new LinearLayout(mContext);
-		((LinearLayout)mRestChips).setOrientation(LinearLayout.HORIZONTAL);
-		mRestChips.setVisibility(GONE);
+		LinearLayout row = new LinearLayout(mContext);
+		row.setOrientation(LinearLayout.HORIZONTAL);
+		row.setVisibility(GONE);
 
 		// The row opens across the message line, and the message reads through the
 		// gaps between chips.  A backing in the info-panel colour makes it a
 		// popover rather than a set of floating tiles over live text.
 		int inset = RhTheme.dpi(mContext, 4f);
-		mRestChips.setBackgroundColor(RhTheme.POPOVER_BG);
-		mRestChips.setPadding(inset, inset, inset, inset);
+		row.setBackgroundColor(RhTheme.POPOVER_BG);
+		row.setPadding(inset, inset, inset, inset);
 
 		LayoutParams lp = new LayoutParams(RhTheme.dpi(mContext, CHIP_ROW_W) + 2 * inset,
 		                                   RhTheme.dpi(mContext, CHIP_SIZE) + 2 * inset);
-		lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-		lp.topMargin = RhTheme.rawDpi(mContext, RhTheme.HEADER_HEIGHT + 4f);
-		addView(mRestChips, lp);
-
-		for(int c = 0; c < RhCommands.COUNT_CHOICES.length; c++)
+		if(mTerm)
 		{
-			final int value = RhCommands.COUNT_CHOICES[c];
+			// Under the Rest slot, over the bank's second row while it is open.
+			lp.gravity = Gravity.TOP | Gravity.LEFT;
+			lp.leftMargin = RhTheme.dpi(mContext, termInner());
+			lp.topMargin = RhTheme.dpi(mContext, termInner() + T_ROW1_H + T_GAP);
+		}
+		else
+		{
+			lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+			lp.topMargin = RhTheme.rawDpi(mContext, RhTheme.HEADER_HEIGHT + 4f);
+		}
+		addView(row, lp);
+
+		for(int c = 0; c < act.counts.length; c++)
+		{
+			final int value = act.counts[c];
 			RhFace chip = new RhFace(mContext)
 					.face(RhTheme.A90)
 					.radius(4f)
@@ -632,7 +976,7 @@ public class RhOverlay extends FrameLayout
 					RhTheme.dpi(mContext, CHIP_SIZE), RhTheme.dpi(mContext, CHIP_SIZE));
 			if(c > 0)
 				lp2.leftMargin = RhTheme.dpi(mContext, CHIP_GAP);
-			mRestChips.addView(chip, lp2);
+			row.addView(chip, lp2);
 
 			bindTap(chip, new Runnable()
 			{
@@ -640,43 +984,51 @@ public class RhOverlay extends FrameLayout
 				public void run()
 				{
 					RhPrefs.saveCount(PreferenceManager.getDefaultSharedPreferences(mContext),
-					                  RhCommands.CTX_REST.key, value);
+					                  act.countKey, value);
 					closeChips();
 				}
 			});
 		}
+		return row;
 	}
 
-	private void openRestChips()
+	private void openRestChips(RhCommands.ContextAction act)
 	{
 		closeFan();
 		closeRadial();
 		closeDrawer();
 		closeContextRadial();
-		mChipsOpen = RhCommands.CTX_REST.key;
+		mChipsOpen = act.countKey;
 		refreshContextStrip();
 	}
 
 	private void refreshRestFace()
 	{
-		if(mRestFace == null)
+		refreshCountFace(mRestFace, mRestChips, RhCommands.CTX_REST);
+		refreshCountFace(mLongFace, mLongChips, RhCommands.CTX_LONG_REST);
+		// Long rest stays up while its own chips are open.
+		if(mRestWell != null)
+			mRestWell.setPinned(RhCommands.CTX_LONG_REST.countKey.equals(mChipsOpen));
+	}
+
+	private void refreshCountFace(RhFace face, ViewGroup chips, RhCommands.ContextAction act)
+	{
+		if(face == null || chips == null)
 			return;
 
-		int n = countFor(RhCommands.CTX_REST);
-		boolean open = RhCommands.CTX_REST.key.equals(mChipsOpen);
+		int n = countFor(act);
+		boolean open = act.countKey.equals(mChipsOpen);
 
-		mRestFace.label(RhPrefs.labelMode() == RhPrefs.LabelMode.KEYS
-						? RhCommands.CTX_REST.keyWithCount(n)
-						: RhCommands.CTX_REST.wordWithCount(n),
+		face.label(RhPrefs.labelMode() == RhPrefs.LabelMode.KEYS
+						? act.keyWithCount(n)
+						: act.wordWithCount(n),
 				8.5f, 0.03f)
-		         .sub(open ? "pick a count" : "hold to set", 7f, RhTheme.BADGE_TEXT, 0.75f);
+		    .sub(open ? "pick a count" : "hold to set", 7f, RhTheme.BADGE_TEXT, 0.75f);
 
-		mRestChips.setVisibility(open ? VISIBLE : GONE);
+		chips.setVisibility(open ? VISIBLE : GONE);
 		if(open)
-			for(int c = 0; c < mRestChips.getChildCount()
-			              && c < RhCommands.COUNT_CHOICES.length; c++)
-				mRestChips.getChildAt(c).setAlpha(
-						RhCommands.COUNT_CHOICES[c] == n ? 1f : 0.66f);
+			for(int c = 0; c < chips.getChildCount() && c < act.counts.length; c++)
+				chips.getChildAt(c).setAlpha(act.counts[c] == n ? 1f : 0.66f);
 	}
 
 	/** Verbatim NetHack message output, pushed whenever the core prints. */
@@ -695,6 +1047,9 @@ public class RhOverlay extends FrameLayout
 		mMessageMore = more;
 		if(mMessagePanel != null)
 			mMessagePanel.setMessage(message, more);
+		if(mScreen != null)
+			mScreen.setMessage(message, more);
+		updateLamps();
 	}
 
 	/**
@@ -717,6 +1072,8 @@ public class RhOverlay extends FrameLayout
 			mStatusPanel.setStatus(status);
 		if(mBadges != null)
 			mBadges.setStatus(status);
+		if(mScreen != null)
+			mScreen.setStatus(status);
 		recomputeContext();
 	}
 
@@ -792,6 +1149,15 @@ public class RhOverlay extends FrameLayout
 		}
 
 		boolean pickup = mStatus != null && mStatus.here(RhStatus.HERE_OBJECT);
+		if(mTerm)
+		{
+			// A keycap says what a hold does on its front, so HOLD leaves the face.
+			if(pickup)
+				mPadCentre.label("PICK UP", 8f, 0.04f).sub(",", 7f, RhTheme.RAW_KEY, 1f);
+			else
+				mPadCentre.label("REST", 9f, 0.04f).sub("hold · context", 7f, RhTheme.TEXT, 0.75f);
+			return;
+		}
 		if(pickup)
 			mPadCentre.label("PICK\nUP", 8f, 0.04f).sub(",", 7f, RhTheme.RAW_KEY, 1f);
 		else
@@ -843,7 +1209,7 @@ public class RhOverlay extends FrameLayout
 		// falling through to the map and firing travel.
 		mPadMold = new FrameLayout(mContext);
 		mPadMold.setClickable(true);
-		addView(mPadMold, boxLB(mPadBox, mPadBox, PAD_LEFT, PAD_BOTTOM));
+		addView(mPadMold, boxLB(mPadBox, mPadBox, padLeft(), padBottom()));
 
 		for(int row = 0; row < 3; row++)
 		{
@@ -864,6 +1230,8 @@ public class RhOverlay extends FrameLayout
 							.face(RhTheme.G90)
 							.label("REST\nHOLD", 8f, 0.04f)
 							.leading(1.1f);
+					if(mTerm)
+						mPadCentre.cap(RhTheme.role(RhTheme.ROLE_MOVE));
 					mPadMold.addView(mPadCentre, boxLB(mPadCell, mPadCell, left, bottom));
 					bindHold(mPadCentre, CENTRE_HOLD_MS,
 						new Runnable() { @Override public void run() { openContextRadial(); } },
@@ -887,6 +1255,8 @@ public class RhOverlay extends FrameLayout
 						.face(RhTheme.G90)
 						.uppercase(false)
 						.label(RhCommands.PAD_ARROW[idx], 18f, 0f);
+				if(mTerm)
+					cell.cap(RhTheme.role(RhTheme.ROLE_MOVE)).sub(String.valueOf(key), 7f, RhTheme.RAW_KEY, 1f);
 				mPadMold.addView(cell, boxLB(mPadCell, mPadCell, left, bottom));
 				bindTap(cell, new Runnable()
 				{
@@ -901,8 +1271,17 @@ public class RhOverlay extends FrameLayout
 		}
 
 		repaintPad();
-		setPadAlpha(PAD_IDLE_ALPHA);
+		setPadAlpha(padIdleAlpha());
+		refreshPadCentre();
 	}
+
+	/**
+	 * The pad's anchor.  The colourful pad is semi-transparent so the map reads
+	 * through it; a keycap sits in its well with nothing behind it to read.
+	 */
+	private float padLeft()      { return mTerm ? termInner() : PAD_LEFT; }
+	private float padBottom()    { return mTerm ? termInner() : PAD_BOTTOM; }
+	private float padIdleAlpha() { return mTerm ? 1f : PAD_IDLE_ALPHA; }
 
 	private void setPadAlpha(float alpha)
 	{
@@ -913,8 +1292,8 @@ public class RhOverlay extends FrameLayout
 	}
 
 	/** Centre of the numpad, in design dp from the left and bottom edges. */
-	private float padCentreX() { return PAD_LEFT + mPadBox / 2f; }
-	private float padCentreY() { return PAD_BOTTOM + mPadBox / 2f; }
+	private float padCentreX() { return padLeft() + mPadBox / 2f; }
+	private float padCentreY() { return padBottom() + mPadBox / 2f; }
 
 	/**
 	 * A hub's centre, with the two that key off the pad derived rather than read.
@@ -929,6 +1308,19 @@ public class RhOverlay extends FrameLayout
 	 */
 	private float hubCx(RhCommands.Hub hub)
 	{
+		if(mTerm)
+		{
+			// OFFENSE opens the deck, beside the pad's well; DROP is the wide key
+			// above the pad; INTERACT and EAT/QUAFF/READ share the right bank's
+			// inner column.
+			if(hub == RhCommands.HUB_ATTACK)
+				return termDeckLeft() + hubW(hub) / 2f;
+			if(hub == RhCommands.HUB_DROP)
+				return termInner() + termWideKey() / 2f;
+			if(hub == RhCommands.HUB_INTERACT || hub == RhCommands.HUB_CONSUME)
+				return -(termInner() + T_RIGHT_COL / 2f);
+			return hub.cx;
+		}
 		if(hub == RhCommands.HUB_ATTACK)
 			return PAD_LEFT + mPadBox + PAD_AIR + hubW(hub) / 2f;
 		return hub.cx;
@@ -938,11 +1330,52 @@ public class RhOverlay extends FrameLayout
 	 * OFFENSE is sized to a numpad cell, so it follows the Movement key size
 	 * setting: the hub beside the pad should be as easy to hit as the pad.
 	 */
-	private float hubW(RhCommands.Hub hub) { return hub == RhCommands.HUB_ATTACK ? mPadCell : hub.w; }
-	private float hubH(RhCommands.Hub hub) { return hub == RhCommands.HUB_ATTACK ? mPadCell : hub.h; }
+	private float hubW(RhCommands.Hub hub)
+	{
+		if(mTerm)
+		{
+			if(hub == RhCommands.HUB_ATTACK)
+				return mPadCell;
+			if(hub == RhCommands.HUB_DROP)
+				return termWideKey();
+			if(hub == RhCommands.HUB_INTERACT || hub == RhCommands.HUB_CONSUME)
+				return T_RIGHT_COL;
+			return hub.w;
+		}
+		return hub == RhCommands.HUB_ATTACK ? mPadCell : hub.w;
+	}
+
+	private float hubH(RhCommands.Hub hub)
+	{
+		if(mTerm)
+		{
+			if(hub == RhCommands.HUB_ATTACK)
+				return RhCase.DECK_KEY;
+			if(hub == RhCommands.HUB_DROP)
+				return T_KEY;
+			if(hub == RhCommands.HUB_INTERACT)
+				return T_INTERACT_H;
+			if(hub == RhCommands.HUB_CONSUME)
+				return T_CONSUME_H;
+			return hub.h;
+		}
+		return hub == RhCommands.HUB_ATTACK ? mPadCell : hub.h;
+	}
 
 	private float hubCy(RhCommands.Hub hub)
 	{
+		if(mTerm)
+		{
+			if(hub == RhCommands.HUB_ATTACK)
+				return termDeckBottom() + RhCase.DECK_KEY / 2f;
+			if(hub == RhCommands.HUB_DROP)
+				return termRow3Bottom() + T_KEY / 2f;
+			if(hub == RhCommands.HUB_INTERACT)
+				return termInner() + T_INTERACT_H / 2f;
+			if(hub == RhCommands.HUB_CONSUME)
+				return termInner() + T_INTERACT_H + T_GAP + T_CONSUME_H / 2f;
+			return hub.cyFromBottom;
+		}
 		if(hub == RhCommands.HUB_DROP)
 			return Math.max(hub.cyFromBottom, PAD_BOTTOM + mPadBox + PAD_AIR + hub.h / 2f);
 		return hub.cyFromBottom;
@@ -1006,6 +1439,12 @@ public class RhOverlay extends FrameLayout
 	 */
 	private void repaintPad()
 	{
+		// Keycaps do not change colour; the terminal lights a lamp instead.
+		if(mTerm)
+		{
+			updateLamps();
+			return;
+		}
 		if(mArmed != null)
 			return;
 		int[] face = RhPrefs.searchMode() ? RhTheme.A90 : RhTheme.G90;
@@ -1115,6 +1554,8 @@ public class RhOverlay extends FrameLayout
 		 * in the slot.
 		 */
 		final List<RhFace> slotFaces = new ArrayList<RhFace>();
+		/** The fan's nodes, by index; re-skinned in place like the slots. */
+		final List<RhFace> fanFaces = new ArrayList<RhFace>();
 	}
 
 	private void buildHubs()
@@ -1135,75 +1576,59 @@ public class RhOverlay extends FrameLayout
 
 		for(int i = 0; i < hub.fan.length && i < FAN_SIZE.length; i++)
 		{
-			final RhCommands.Item item = hub.fan[i];
+			final int index = i;
 			double a = Math.toRadians(hub.fanA0 + i * hub.fanStep);
 			float sx = offsetX(hubCx(hub), (float)Math.cos(a) * hub.fanRadius);
 			float sy = hubCy(hub) - (float)Math.sin(a) * hub.fanRadius;
 
-			RhFace slot = new RhFace(mContext)
+			final RhFace slot = new RhFace(mContext)
 					.shape(FAN_RADIUS_CORNER[i] < 0 ? RhFace.Shape.CIRCLE : RhFace.Shape.RECT)
-					.radius(FAN_RADIUS_CORNER[i] < 0 ? RhTheme.FACE_RADIUS : FAN_RADIUS_CORNER[i])
-					.face(item.face != null ? item.face : RhTheme.G90)
-					.label(labelFor(item), 8.5f, 0.02f)
-					.sub(subKeyFor(item), 8f, RhTheme.RAW_KEY, 1f);
+					.radius(FAN_RADIUS_CORNER[i] < 0 ? RhTheme.FACE_RADIUS : FAN_RADIUS_CORNER[i]);
 			slot.setRotation(FAN_ROTATE[i]);
 			hv.fan.addView(slot, centredLB(FAN_SIZE[i], FAN_SIZE[i], sx, sy));
+			hv.fanFaces.add(slot);
 
-			final RhFace tapTarget = slot;
-			// ATTACK's fan is the pickup source for its star points; the other fans
-			// have no slot group, so a hold there is simply inert.
-			if(hub == RhCommands.HUB_ATTACK)
-			{
-				bindHold(slot, HUB_HOLD_MS,
-					new Runnable() { @Override public void run() { pickUp(item, ASSIGN_ATTACK); } },
-					new Runnable()
-					{
-						@Override
-						public void run()
-						{
-							closeFan();
-							fireFromHub(hub, item, tapTarget);
-						}
-					});
-			}
-			else if(item.hasAlt())
-			{
-				// A hold sends the command's fuller form -- Engrave's menu of
-				// things to write with, rather than starting the engraving.
-				bindHold(slot, HUB_HOLD_MS,
-					new Runnable()
-					{
-						@Override
-						public void run()
-						{
-							closeFan();
-							flashRaw(item.altKey, tapTarget);
-							mHost.sendCommand(item.altKey);
-						}
-					},
-					new Runnable()
-					{
-						@Override
-						public void run()
-						{
-							closeFan();
-							fireFromHub(hub, item, tapTarget);
-						}
-					});
-			}
-			else
-			{
-				bindTap(slot, new Runnable()
+			// Both handlers read the node's command at press time: a fan is
+			// assignable now (Lucas, 2026-09-24), so what a node holds can change.
+			bindHold(slot, HUB_HOLD_MS,
+				new Runnable()
 				{
 					@Override
 					public void run()
 					{
+						// A hold sends the command's fuller form -- Engrave's menu of
+						// things to write with, rather than starting the engraving.
+						RhCommands.Item item = fanItem(hub, index);
+						if(mAssign != null || item == null || !item.hasAlt())
+							return;
 						closeFan();
-						fireFromHub(hub, item, tapTarget);
+						flashRaw(item.altKey, slot);
+						mHost.sendCommand(item.altKey);
+					}
+				},
+				new Runnable()
+				{
+					@Override
+					public void run()
+					{
+						if(assignAcceptsFan(hub))
+						{
+							placeFan(hv, index);
+							return;
+						}
+						RhCommands.Item item = fanItem(hub, index);
+						closeFan();
+						if(item == null)
+						{
+							// An emptied node is the way into the drawer to refill it.
+							openDrawer(hub.group.id, hub);
+							return;
+						}
+						fireFromHub(hub, item, slot);
 					}
 				});
-			}
 		}
+		refreshFan(hv);
 
 		if(hub == RhCommands.HUB_ATTACK)
 		{
@@ -1231,25 +1656,42 @@ public class RhOverlay extends FrameLayout
 		hv.face = new RhFace(mContext)
 				.face(hub.face)
 				.label(hub.label, hub.labelSize, hub.labelTracking)
-				.sub(hub.leftSide ? "hold ▸" : "◂ hold", 8f, RhTheme.TEXT, 0.75f);
+				.sub(hubIdleSub(hub), 8f, RhTheme.TEXT, 0.75f);
 
-		if(hub.poly != null)
-			hv.face.poly(hub.poly, hub.insL, hub.insT, hub.insR, hub.insB);
-		else if(hub.radius < 0)
-			hv.face.shape(RhFace.Shape.CIRCLE);
+		if(mTerm)
+		{
+			// Every hub is a keycap: a keyboard tells its keys apart by size and
+			// place, so the silhouettes stand down.  INTERACT is the right thumb's
+			// home key; it and EAT/QUAFF/READ take their colours from the skin.
+			hv.face.radius(4f);
+			if(hub == RhCommands.HUB_INTERACT)
+				hv.face.cap(RhTheme.role(RhTheme.ROLE_INTERACT));
+			else if(hub == RhCommands.HUB_CONSUME)
+				hv.face.cap(RhTheme.role(RhTheme.ROLE_CONSUME));
+			else if(hub == RhCommands.HUB_EQUIP)
+				hv.face.defaultCap(RhTheme.role(RhTheme.ROLE_INVENTORY));
+		}
 		else
-			hv.face.radius(hub.radius);
+		{
+			if(hub.poly != null)
+				hv.face.poly(hub.poly, hub.insL, hub.insT, hub.insR, hub.insB);
+			else if(hub.radius < 0)
+				hv.face.shape(RhFace.Shape.CIRCLE);
+			else
+				hv.face.radius(hub.radius);
 
-		if(hub.labelPadBottom > 0f)
-			hv.face.labelPadBottom(hub.labelPadBottom);
-		if(hub.labelPadRight > 0f)
-			hv.face.labelPadRight(hub.labelPadRight);
+			if(hub.labelPadBottom > 0f)
+				hv.face.labelPadBottom(hub.labelPadBottom);
+			if(hub.labelPadRight > 0f)
+				hv.face.labelPadRight(hub.labelPadRight);
+		}
 
 		if(hub == RhCommands.HUB_EQUIP)
 		{
 			// The inventory bar: the matrix's full width, half a cell tall, on top.
-			hv.face.sub("hold · all gear", 6.5f, RhTheme.TEXT, 0.75f);
-			addView(hv.face, boxTR(EQ_W, EQ_BAR, EQ_RIGHT, EQ_TOP));
+			hv.face.sub(hubIdleSub(hub), hubSubSize(hub), RhTheme.TEXT, 0.75f);
+			addView(hv.face, mTerm ? boxTR(mPadBox, T_EQ_BAR, termInner(), termEqTop())
+			                       : boxTR(EQ_W, EQ_BAR, EQ_RIGHT, EQ_TOP));
 		}
 		else
 			addView(hv.face, centredLB(hubW(hub), hubH(hub), hubCx(hub), hubCy(hub)));
@@ -1261,7 +1703,7 @@ public class RhOverlay extends FrameLayout
 			// the radial's nodes fires it directly -- see bindFlick().
 			bindFlick(hv.face, hub, RhCommands.OFFENSE_RADIAL, RhCommands.ATK_SLOT_BEARING,
 				HUB_HOLD_MS,
-				new Runnable() { @Override public void run() { openDrawer(hub.group.id); } },
+				new Runnable() { @Override public void run() { openDrawer(hub.group.id, hub); } },
 				new Runnable() { @Override public void run() { toggleRadial(hub); } });
 		}
 		else if(hub == RhCommands.HUB_EQUIP)
@@ -1269,7 +1711,7 @@ public class RhOverlay extends FrameLayout
 			// The inventory bar over the equipment matrix: tap `i`, hold for the
 			// whole gear drawer.  The six cells below it do the rest.
 			bindHold(hv.face, HUB_HOLD_MS,
-				new Runnable() { @Override public void run() { openDrawer(hub.group.id); } },
+				new Runnable() { @Override public void run() { openDrawer(hub.group.id, hub); } },
 				new Runnable() { @Override public void run() { execute(hub.quick, hv.face); } });
 		}
 		else
@@ -1356,10 +1798,23 @@ public class RhOverlay extends FrameLayout
 		{
 			final int index = i;
 			int col = i % 3, row = i / 3;
-			float right = EQ_RIGHT + (2 - col) * (EQ_CELL + EQ_GAP);
-			float top = EQ_TOP + EQ_BAR + EQ_GAP + row * (EQ_CELL + EQ_GAP);
 			final RhFace slot = new RhFace(mContext).radius(3f);
-			hv.satellites.addView(slot, boxTR(EQ_CELL, EQ_CELL, right, top));
+			if(mTerm)
+			{
+				// The bank's full width in three, under a 28dp bar.  The put-on verbs
+				// take the skin's inventory colour; the off verbs keep their slate.
+				slot.defaultCap(RhTheme.role(RhTheme.ROLE_INVENTORY));
+				float cellW = (mPadBox - 2 * T_GAP) / 3f;
+				float right = termInner() + (2 - col) * (cellW + T_GAP);
+				float top = termEqTop() + T_EQ_BAR + 8f + row * (T_EQ_CELL_H + T_GAP);
+				hv.satellites.addView(slot, boxTR(cellW, T_EQ_CELL_H, right, top));
+			}
+			else
+			{
+				float right = EQ_RIGHT + (2 - col) * (EQ_CELL + EQ_GAP);
+				float top = EQ_TOP + EQ_BAR + EQ_GAP + row * (EQ_CELL + EQ_GAP);
+				hv.satellites.addView(slot, boxTR(EQ_CELL, EQ_CELL, right, top));
+			}
 			hv.slotFaces.add(slot);
 
 			bindHold(slot, SLOT_CLEAR_MS,
@@ -1386,7 +1841,7 @@ public class RhOverlay extends FrameLayout
 						RhCommands.Item item = slotItem(false, index);
 						if(item == null)
 						{
-							openDrawer(hv.hub.group.id);
+							openDrawer(hv.hub.group.id, hv.hub);
 							return;
 						}
 						execute(item, slot);
@@ -1414,7 +1869,10 @@ public class RhOverlay extends FrameLayout
 			float sy = hubCy(hub) - (float)Math.sin(a) * radius;
 
 			final RhFace slot = new RhFace(mContext).shape(RhFace.Shape.CIRCLE);
-			hv.satellites.addView(slot, centredLB(SAT_SIZE, SAT_SIZE, sx, sy));
+			if(mTerm && attack)
+				hv.satellites.addView(slot, termAttackSlot(i));
+			else
+				hv.satellites.addView(slot, centredLB(SAT_SIZE, SAT_SIZE, sx, sy));
 			hv.slotFaces.add(slot);
 
 			// Both handlers read the slot's contents at press time, never at build
@@ -1458,6 +1916,20 @@ public class RhOverlay extends FrameLayout
 		}
 
 		refreshSlots(hv, attack);
+	}
+
+	/**
+	 * Terminal style: OFFENSE's three pinned points as keys.  The first sits in
+	 * the left bank beside DROP, directly above the pad's right column; the other
+	 * two follow OFFENSE along the deck.  Up, up-right and right of the thumb --
+	 * the same order the arc ran in.
+	 */
+	private LayoutParams termAttackSlot(int i)
+	{
+		if(i == 0)
+			return boxLB(T_KEY, T_KEY, termInner() + mPadBox - T_KEY, termRow3Bottom());
+		float left = termDeckLeft() + mPadCell + T_GAP + (i - 1) * (T_SLOT_W + T_GAP);
+		return boxLB(T_SLOT_W, RhCase.DECK_KEY, left, termDeckBottom());
 	}
 
 	private boolean slotsHiddenBy(HubView hv, boolean attack)
@@ -1516,12 +1988,114 @@ public class RhOverlay extends FrameLayout
 	/** Hold a fan or radial node to pick its command up. */
 	private void pickUp(RhCommands.Item item, int target)
 	{
+		pickUp(item, target, null);
+	}
+
+	private void pickUp(RhCommands.Item item, int target, RhCommands.Hub hub)
+	{
 		closeChips();
 		closeFan();
 		closeRadial();
 		closeDrawer();
 		mAssign = item;
 		mAssignTarget = target;
+		mAssignHub = hub != null ? hub.id : null;
+		if(target == ASSIGN_FAN)
+		{
+			// The fan opens with every node lit; tapping one places the command.
+			HubView hv = hubView(mAssignHub);
+			if(hv != null)
+			{
+				mFanOpen = hv.hub.id;
+				hv.fan.setVisibility(VISIBLE);
+			}
+		}
+		refreshAllSlots();
+		updateHubSubLines();
+		applyDimming();
+	}
+
+	/** Where a drawer's command can be pinned, by the hub that opened the drawer. */
+	private int assignTargetFor(RhCommands.Hub hub)
+	{
+		if(hub == RhCommands.HUB_ATTACK)
+			return ASSIGN_ATTACK;
+		if(hub == RhCommands.HUB_EQUIP)
+			return ASSIGN_EQUIP;
+		if(hub != null && mFanKeys.containsKey(hub.id))
+			return ASSIGN_FAN;
+		return ASSIGN_BOTH;
+	}
+
+	private HubView hubView(String id)
+	{
+		if(id == null)
+			return null;
+		for(HubView hv : mHubs)
+			if(hv.hub.id.equals(id))
+				return hv;
+		return null;
+	}
+
+	private boolean assignAcceptsFan(RhCommands.Hub hub)
+	{
+		return mAssign != null && mAssignTarget == ASSIGN_FAN && hub.id.equals(mAssignHub);
+	}
+
+	/** A fan node's command: the pinned key, or the fan as shipped. */
+	private RhCommands.Item fanItem(RhCommands.Hub hub, int index)
+	{
+		String[] keys = mFanKeys.get(hub.id);
+		if(keys == null || index >= keys.length)
+			return index < hub.fan.length ? hub.fan[index] : null;
+		return RhCommands.pinnable(keys[index]);
+	}
+
+	/** Re-skin one hub's fan nodes from its key array, in place. */
+	private void refreshFan(HubView hv)
+	{
+		boolean taking = assignAcceptsFan(hv.hub);
+		for(int i = 0; i < hv.fanFaces.size(); i++)
+		{
+			RhFace node = hv.fanFaces.get(i);
+			if(taking)
+			{
+				node.placeholder(false)
+				    .face(RhTheme.A90)
+				    .textColor(RhTheme.BADGE_TEXT)
+				    .label("HERE", 8f, 0.04f)
+				    .sub(null, 7f, RhTheme.RAW_KEY, 1f);
+				continue;
+			}
+			RhCommands.Item item = fanItem(hv.hub, i);
+			if(item == null)
+				node.placeholder(true)
+				    .textColor(RhTheme.TEXT)
+				    .label("+", 15f, 0f)
+				    .sub(null, 7f, RhTheme.RAW_KEY, 1f);
+			else
+				node.placeholder(false)
+				    .face(item.face != null ? item.face : RhTheme.G90)
+				    .textColor(RhTheme.TEXT)
+				    .label(labelFor(item), 8.5f, 0.02f)
+				    .sub(subKeyFor(item), 8f, RhTheme.RAW_KEY, 1f);
+		}
+	}
+
+	private void placeFan(HubView hv, int index)
+	{
+		String[] keys = mFanKeys.get(hv.hub.id);
+		if(keys == null || mAssign == null)
+			return;
+		// Moving, not duplicating: the command leaves any other node of this fan.
+		for(int i = 0; i < keys.length; i++)
+			if(mAssign.key.equals(keys[i]))
+				keys[i] = null;
+		keys[index] = mAssign.key;
+		RhPrefs.saveFanSlots(PreferenceManager.getDefaultSharedPreferences(mContext), hv.hub.id, keys);
+		mAssign = null;
+		mAssignHub = null;
+		closeFan();
 		refreshAllSlots();
 		updateHubSubLines();
 		applyDimming();
@@ -1531,7 +2105,11 @@ public class RhOverlay extends FrameLayout
 	{
 		if(mAssign == null)
 			return;
+		boolean fan = mAssignTarget == ASSIGN_FAN;
 		mAssign = null;
+		mAssignHub = null;
+		if(fan)
+			closeFan();
 		refreshAllSlots();
 		updateHubSubLines();
 		applyDimming();
@@ -1575,6 +2153,7 @@ public class RhOverlay extends FrameLayout
 	{
 		for(HubView hv : mHubs)
 		{
+			refreshFan(hv);
 			if(hv.hub == RhCommands.HUB_ATTACK)
 				refreshSlots(hv, true);
 			else if(hv.hub == RhCommands.HUB_EQUIP)
@@ -1592,25 +2171,50 @@ public class RhOverlay extends FrameLayout
 				sub = "pick a point";
 			else if(hv.hub == RhCommands.HUB_EQUIP && assignAccepts(false))
 				sub = "pick a cell";
+			else if(assignAcceptsFan(hv.hub))
+				sub = "pick a node";
 			else if(hv.hub.id.equals(mFanOpen))
 				sub = "tap = all";
-			else if(hv.hub == RhCommands.HUB_EQUIP)
-				sub = "hold · all gear";
 			else
-				sub = hv.hub.leftSide ? "hold ▸" : "◂ hold";
+				sub = hubIdleSub(hv.hub);
 			hv.face.sub(sub, hv.hub == RhCommands.HUB_EQUIP ? 6.5f : 8f, RhTheme.TEXT, 0.75f);
 		}
 	}
 
+	/**
+	 * A hub's sub-line at rest: what its hold does.  OFFENSE advertises the flick
+	 * as well (Lucas, 2026-09-24): flicking up-right to kick a door is the fastest
+	 * way through one at low level, and nothing on the face said it was there.
+	 */
+	private String hubIdleSub(RhCommands.Hub hub)
+	{
+		if(hub == RhCommands.HUB_EQUIP)
+			return "hold · all gear";
+		if(hub == RhCommands.HUB_ATTACK)
+			return "hold + flick";
+		return hub.leftSide ? "hold ▸" : "◂ hold";
+	}
+
+	private float hubSubSize(RhCommands.Hub hub)
+	{
+		return hub == RhCommands.HUB_EQUIP ? 6.5f : 8f;
+	}
+
 	private void hubTapped(HubView hv)
 	{
+		// The hub under a fan that is waiting for a command: a tap is a cancel.
+		if(assignAcceptsFan(hv.hub))
+		{
+			cancelAssignment();
+			return;
+		}
 		if(hv.hub.id.equals(mFanOpen) || hv.hub.id.equals(mRadialOpen))
 		{
 			// Second tap with the fan (or EQUIP's radial) open: it closes and the
 			// group drawer opens.  This is the third level of depth.
 			closeFan();
 			closeRadial();
-			openDrawer(hv.hub.group.id);
+			openDrawer(hv.hub.group.id, hv.hub);
 			return;
 		}
 		execute(hv.hub.quick, hv.face);
@@ -1641,9 +2245,10 @@ public class RhOverlay extends FrameLayout
 			if(!hv.hub.id.equals(mFanOpen))
 				continue;
 			hv.fan.setVisibility(GONE);
+			refreshFan(hv);
 			if(hv.hub == RhCommands.HUB_ATTACK)
 				closedFan = hv;
-			hv.face.sub(hv.hub.leftSide ? "hold ▸" : "◂ hold", 8f, RhTheme.TEXT, 0.75f);
+			hv.face.sub(hubIdleSub(hv.hub), hubSubSize(hv.hub), RhTheme.TEXT, 0.75f);
 		}
 		mFanOpen = null;
 		if(closedFan != null)
@@ -1757,7 +2362,7 @@ public class RhOverlay extends FrameLayout
 			{
 				refreshSlotsFor(hv.hub);
 				if(hv.hub == RhCommands.HUB_EQUIP)
-					hv.face.sub(hv.hub.leftSide ? "hold ▸" : "◂ hold", 8f, RhTheme.TEXT, 0.75f);
+					hv.face.sub(hubIdleSub(hv.hub), hubSubSize(hv.hub), RhTheme.TEXT, 0.75f);
 			}
 		applyDimming();
 	}
@@ -1771,48 +2376,203 @@ public class RhOverlay extends FrameLayout
 
 	// ____________________________________________________________________________________
 	/**
-	 * Dimming.  An open fan sweeps through its neighbours' space, so opening one
-	 * drops the other hubs on that thumb's side out of the way and out of reach.
-	 * The far side is untouched.  Cheaper than re-aiming every fan to avoid every
-	 * neighbour, and it reads correctly: while you are choosing inside a fan,
-	 * nothing else on that thumb is live.
+	 * Modality.  While a fan, radial, chip row or pin assignment is open, one
+	 * scrim covers everything else: it greys every other control, blocks it, and
+	 * a tap on it closes what is open without the tap reaching the map.  The
+	 * open popup and the face that opened it are lifted above the scrim, so the
+	 * opener keeps its own grammar -- tap OFFENSE again to close its radial, tap
+	 * a fan hub again for its drawer.
+	 *
+	 * This replaced per-hub fading (Lucas, 2026-09-24).  That faded same-side
+	 * hubs but left them live, left the numpad live under an open radial, and
+	 * never reordered anything, so a fan opened underneath whatever had been
+	 * added after it -- DROP's nodes under the macro key, the context radial
+	 * under DROP.  Lifting on every open puts the popup on top whatever the
+	 * build order was.
 	 */
 	private void applyDimming()
 	{
-		// A pending pin counts as an opener: while a command is in hand, the slots
-		// taking it are the only live things on that thumb.
-		String opener = mFanOpen;
-		if(opener == null && mRadialOpen != null)
-			opener = mRadialOpen;
-		if(opener == null && mAssign != null && mAssignTarget == ASSIGN_EQUIP)
-			opener = "equip";
-		if(opener == null && mAssign != null && mAssignTarget == ASSIGN_ATTACK)
-			opener = "fight";
-		if(opener == null && mCtxRadialOpen)
-			opener = "move";
-
-		boolean openerLeft = opener != null && RhCommands.isLeftSide(opener);
-
 		for(HubView hv : mHubs)
 		{
-			boolean dim = opener != null
-					&& !hv.hub.id.equals(opener)
-					&& RhCommands.isLeftSide(hv.hub.id) == openerLeft;
-			float alpha = dim ? DIM_ALPHA : 1f;
-			hv.face.setAlpha(alpha);
-			hv.face.setEnabled(!dim);
+			hv.face.setAlpha(1f);
+			hv.face.setEnabled(true);
 			if(hv.satellites != null)
 			{
-				hv.satellites.setAlpha(alpha);
-				setGroupEnabled(hv.satellites, !dim);
+				hv.satellites.setAlpha(1f);
+				setGroupEnabled(hv.satellites, true);
+			}
+		}
+		setPadAlpha(mArmed != null ? 1f : padIdleAlpha());
+		syncModal();
+	}
+
+	/** Show or hide the scrim for what is open now, and lift the open things above it. */
+	private void syncModal()
+	{
+		if(mScrim == null)
+			return;
+
+		List<View> lift = new ArrayList<View>();
+		if(mFanOpen != null)
+		{
+			HubView hv = hubView(mFanOpen);
+			if(hv != null)
+			{
+				lift.add(hv.face);
+				lift.add(hv.fan);
+			}
+		}
+		if(mRadialOpen != null)
+		{
+			HubView hv = hubView(mRadialOpen);
+			if(hv != null)
+				lift.add(hv.face);
+			lift.add(mRadials.get(mRadialOpen));
+		}
+		if(mCtxRadialOpen)
+			lift.add(mCtxRadial);
+		if(mCandOpen && mCtxStrip.size() > 1)
+		{
+			lift.add(mCtxStrip.get(1));
+			lift.add(mCandRadial);
+		}
+		if(mChipsOpen != null)
+		{
+			if(mChipsOpen.equals(RhCommands.CTX_REST.countKey))
+			{
+				lift.add(mRestWell != null ? mRestWell : mRestFace);
+				lift.add(mRestChips);
+			}
+			else if(mChipsOpen.equals(RhCommands.CTX_LONG_REST.countKey))
+			{
+				lift.add(mRestWell);
+				lift.add(mLongChips);
+			}
+			else
+			{
+				for(int i = 0; i < mCtxStrip.size() && i < mChipRows.size(); i++)
+				{
+					RhCommands.ContextAction act = contextAction(i);
+					if(act != null && act.isCounted() && act.countKey.equals(mChipsOpen))
+					{
+						lift.add(mCtxStrip.get(i));
+						lift.add(mChipRows.get(i));
+					}
+				}
+			}
+		}
+		if(mAssign != null)
+		{
+			for(HubView hv : mHubs)
+			{
+				if(hv.satellites != null
+						&& ((hv.hub == RhCommands.HUB_ATTACK && assignAccepts(true))
+						 || (hv.hub == RhCommands.HUB_EQUIP && assignAccepts(false))))
+					lift.add(hv.satellites);
+				if(assignAcceptsFan(hv.hub))
+				{
+					lift.add(hv.face);
+					lift.add(hv.fan);
+				}
 			}
 		}
 
-		// The numpad is on the left thumb and dims with it.
-		if(opener != null && openerLeft && !"move".equals(opener))
-			setPadAlpha(DIM_ALPHA);
-		else
-			setPadAlpha(mArmed != null ? 1f : PAD_IDLE_ALPHA);
+		if(lift.isEmpty())
+		{
+			mScrim.setVisibility(GONE);
+			return;
+		}
+		mScrim.setHint(mAssign != null
+				? "TAP A LIT KEY TO PLACE " + mAssign.word.toUpperCase() + "  ·  TAP ELSEWHERE OR BACK TO CANCEL"
+				: "TAP ANYWHERE OR BACK TO CLOSE");
+		mScrim.setVisibility(VISIBLE);
+		mScrim.bringToFront();
+		for(View v : lift)
+			liftAboveScrim(v);
+		if(mDrawer != null)
+			mDrawer.bringToFront();
+		if(mFlash != null)
+			mFlash.bringToFront();
+	}
+
+	/** Bring a view -- or the direct child of this overlay that holds it -- to the top. */
+	private void liftAboveScrim(View v)
+	{
+		while(v != null && v.getParent() != this)
+			v = v.getParent() instanceof View ? (View)v.getParent() : null;
+		if(v != null)
+			v.bringToFront();
+	}
+
+	/** Close every fan, radial, chip row and pin in hand.  True if anything was open. */
+	private boolean dismissPopups()
+	{
+		boolean any = mChipsOpen != null || mCandOpen || mAssign != null
+				|| mRadialOpen != null || mCtxRadialOpen || mFanOpen != null;
+		closeChips();
+		closeCandidates();
+		cancelAssignment();
+		closeRadial();
+		closeContextRadial();
+		closeFan();
+		syncModal();
+		return any;
+	}
+
+	/**
+	 * The scrim itself: a grey wash over everything below it, a line of text
+	 * saying how to get out, and a tap anywhere is the way out.
+	 */
+	private final class ModalScrim extends View
+	{
+		private final Paint mHint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+		private final Paint mPillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+		private final android.graphics.RectF mPill = new android.graphics.RectF();
+		private String mText = "";
+
+		ModalScrim(android.content.Context c)
+		{
+			super(c);
+			mHint.setTypeface(mTerm ? RhTheme.capFont(c) : RhTheme.monoBold(c));
+			mHint.setTextAlign(Paint.Align.CENTER);
+			mHint.setTextSize(RhTheme.dp(c, 9f));
+			mHint.setColor(0xd9ffffff);
+			if(android.os.Build.VERSION.SDK_INT >= 21)
+				mHint.setLetterSpacing(0.1f);
+		}
+
+		void setHint(String text)
+		{
+			if(text.equals(mText))
+				return;
+			mText = text;
+			invalidate();
+		}
+
+		@Override
+		protected void onDraw(Canvas canvas)
+		{
+			canvas.drawColor(0x9e05070d);
+			float y = mTerm ? RhTheme.dp(getContext(), RhCase.glassTop() + 14f)
+			                : RhTheme.rawDp(getContext(), RhTheme.HEADER_HEIGHT + 16f);
+			// On a pill of its own: the hint sits over the message lines.
+			Paint.FontMetrics fm = mHint.getFontMetrics();
+			float half = mHint.measureText(mText) / 2f + RhTheme.dp(getContext(), 10f);
+			float pad = RhTheme.dp(getContext(), 4f);
+			mPill.set(getWidth() / 2f - half, y + fm.ascent - pad, getWidth() / 2f + half, y + fm.descent + pad);
+			float r = mPill.height() / 2f;
+			mPillPaint.setColor(0xf205070d);
+			canvas.drawRoundRect(mPill, r, r, mPillPaint);
+			canvas.drawText(mText, getWidth() / 2f, y, mHint);
+		}
+
+		@Override
+		public boolean onTouchEvent(MotionEvent e)
+		{
+			if(e.getActionMasked() == MotionEvent.ACTION_UP)
+				dismissPopups();
+			return true;
+		}
 	}
 
 	private static void setGroupEnabled(ViewGroup g, boolean enabled)
@@ -1845,8 +2605,10 @@ public class RhOverlay extends FrameLayout
 		closeDrawer();
 		mArmed = cmd;
 		flashKey(cmd, from);
-		for(RhFace c : mPadCells)
-			c.face(RhTheme.R90);
+		if(!mTerm)
+			for(RhFace c : mPadCells)
+				c.face(RhTheme.R90);
+		updateLamps();
 		setPadAlpha(1f);
 		refreshPadCentre();
 		mArmedBanner.label(cmd.word.toUpperCase() + " — PICK A DIRECTION", 10f, 0.04f);
@@ -1859,7 +2621,8 @@ public class RhOverlay extends FrameLayout
 			return;
 		mArmed = null;
 		repaintPad();
-		setPadAlpha(PAD_IDLE_ALPHA);
+		updateLamps();
+		setPadAlpha(padIdleAlpha());
 		refreshPadCentre();
 		mArmedBanner.setVisibility(GONE);
 	}
@@ -1875,8 +2638,17 @@ public class RhOverlay extends FrameLayout
 				.label("", 10f, 0.04f);
 		mArmedBanner.setVisibility(GONE);
 		LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, RhTheme.dpi(mContext, 30f));
-		lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-		lp.bottomMargin = RhTheme.dpi(mContext, 284f);
+		if(mTerm)
+		{
+			// Across the top of the map, under the message lines.
+			lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+			lp.topMargin = RhTheme.dpi(mContext, RhCase.glassTop() + RhScreen.MSG_BAND + 6f);
+		}
+		else
+		{
+			lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+			lp.bottomMargin = RhTheme.dpi(mContext, 284f);
+		}
 		addView(mArmedBanner, lp);
 
 		// Tapping the banner is the ESC cancel.
@@ -1960,13 +2732,21 @@ public class RhOverlay extends FrameLayout
 			RhFace f = new RhFace(mContext)
 					.face(RhTheme.G90)
 					.label("", 9.5f, 0.03f);
-			addView(f, boxLB(CTX_STRIP_W, CTX_STRIP_H[i], x, CTX_STRIP_BOTTOM));
+			if(mTerm)
+			{
+				addView(f, termStripBox(i));
+				buildChipRow(index, termChipBox(i));
+			}
+			else
+			{
+				addView(f, boxLB(CTX_STRIP_W, CTX_STRIP_H[i], x, CTX_STRIP_BOTTOM));
+				// Search's chips open from slot 2 now, so they anchor to its right edge and
+				// reach back over the strip rather than out under the right-hand hubs.
+				buildChipRow(index, boxLB(CHIP_ROW_W, CHIP_SIZE,
+				                          index == 2 ? x + CTX_STRIP_W - CHIP_ROW_W : x,
+				                          CTX_STRIP_BOTTOM + CTX_STRIP_H[i] + CHIP_GAP_ABOVE));
+			}
 			mCtxStrip.add(f);
-
-			// Search's chips open from slot 2 now, so they anchor to its right edge and
-			// reach back over the strip rather than out under the right-hand hubs.
-			buildChipRow(index, index == 2 ? x + CTX_STRIP_W - CHIP_ROW_W : x,
-			             CTX_STRIP_BOTTOM + CTX_STRIP_H[i] + CHIP_GAP_ABOVE);
 
 			// Bound once; both handlers read the slot's current action at press
 			// time, because the strip rewrites itself every turn.
@@ -2003,7 +2783,7 @@ public class RhOverlay extends FrameLayout
 						RhCommands.ContextAction act = contextAction(index);
 						if(act == null)
 							return;
-						if(act.isCounted() && act.key.equals(mChipsOpen))
+						if(act.isCounted() && act.countKey.equals(mChipsOpen))
 						{
 							// Tapping a face whose chips are open just closes them.
 							closeChips();
@@ -2035,6 +2815,49 @@ public class RhOverlay extends FrameLayout
 		return index < mCtxActions.length ? mCtxActions[index] : null;
 	}
 
+	/*
+	 * Terminal style: Look and the context key close the deck, measured from its
+	 * right end so they sit toward the right thumb as the strip did; Search moves
+	 * to the foot of the right bank, beside INTERACT.  Each chip row opens above
+	 * its own key.
+	 */
+	/**
+	 * Look and the context key share whatever the deck has left after OFFENSE and
+	 * the two pinned slots, so the deck is full on any screen width -- 117dp each
+	 * on the design screen.  Before the first layout the width is unknown and the
+	 * design value stands in; the rebuild on the first size change corrects it.
+	 */
+	private float termStripW()
+	{
+		if(getWidth() == 0)
+			return T_STRIP_W;
+		float deckInner = getWidth() / RhTheme.dp(mContext, 1f) - 2 * termDeckLeft();
+		float left = mPadCell + 2 * (T_GAP + T_SLOT_W);
+		float w = (deckInner - left - 8f - T_GAP - T_GAP) / 2f;
+		return RhTheme.clamp(w, 70f, 170f);
+	}
+
+	private float termStripRight(int i)
+	{
+		return i == 0 ? termDeckLeft() + termStripW() + T_GAP : termDeckLeft();
+	}
+
+	private LayoutParams termStripBox(int i)
+	{
+		if(i == 2)
+			return box(mPadBox - T_RIGHT_COL - T_GAP, T_SEARCH_H,
+			           termInner() + T_RIGHT_COL + T_GAP, termInner(), true);
+		return box(termStripW(), RhCase.DECK_KEY, termStripRight(i), termDeckBottom(), true);
+	}
+
+	private LayoutParams termChipBox(int i)
+	{
+		if(i == 2)
+			return box(CHIP_ROW_W, CHIP_SIZE, termInner(), termInner() + T_SEARCH_H + CHIP_GAP_ABOVE, true);
+		return box(CHIP_ROW_W, CHIP_SIZE, termStripRight(i) + termStripW() - CHIP_ROW_W,
+		           termDeckBottom() + RhCase.DECK_KEY + CHIP_GAP_ABOVE, true);
+	}
+
 	private static final float CAND_RADIUS = 100f;
 	private static final float CAND_SIZE   = 54f;
 
@@ -2059,8 +2882,10 @@ public class RhOverlay extends FrameLayout
 		mCandRadial.removeAllViews();
 
 		int n = mCtxCandidates.size();
-		float cx = CTX_STRIP_LEFT + CTX_STRIP_W + CTX_STRIP_GAP + CTX_STRIP_W / 2f;
-		float cy = CTX_STRIP_BOTTOM + CTX_STRIP_H[1] / 2f;
+		float cx = mTerm ? -(termStripRight(1) + termStripW() / 2f)
+		                 : CTX_STRIP_LEFT + CTX_STRIP_W + CTX_STRIP_GAP + CTX_STRIP_W / 2f;
+		float cy = mTerm ? termDeckBottom() + RhCase.DECK_KEY / 2f
+		                 : CTX_STRIP_BOTTOM + CTX_STRIP_H[1] / 2f;
 		float spread = n <= 2 ? 60f : n == 3 ? 45f : 36f;
 		float a0 = 270f - spread * (n - 1) / 2f;
 		for(int k = 0; k < n; k++)
@@ -2141,7 +2966,7 @@ public class RhOverlay extends FrameLayout
 				f.label(RhPrefs.labelMode() == RhPrefs.LabelMode.KEYS
 								? act.keyWithCount(n) : act.wordWithCount(n),
 						9.5f, 0.03f)
-				 .sub(act.key.equals(mChipsOpen) ? "pick a count" : "hold to set",
+				 .sub(act.countKey.equals(mChipsOpen) ? "pick a count" : "hold to set",
 				      8f, RhTheme.TEXT, 0.75f);
 			}
 			else if(i == 1 && mCtxCandidates.size() > 1)
@@ -2166,6 +2991,7 @@ public class RhOverlay extends FrameLayout
 		}
 		refreshChipRows();
 		refreshRestFace();
+		syncModal();
 	}
 
 	/**
@@ -2178,6 +3004,19 @@ public class RhOverlay extends FrameLayout
 	 */
 	private void applyStripShape(RhFace f, int index, RhCommands.ContextAction act)
 	{
+		if(mTerm)
+		{
+			// Keys keep their size and colour.  The context key says it has
+			// something to offer by lighting: its lamp and a backlit legend.
+			f.face(RhTheme.G90);
+			f.shape(RhFace.Shape.RECT);
+			if(index == 1)
+				f.lamp(act != null ? RhFace.LAMP_ON : RhFace.LAMP_OFF).lit(act != null);
+			if(index == 2)
+				f.defaultCap(RhTheme.role(RhTheme.ROLE_SEARCH));
+			return;
+		}
+
 		// By identity: Look shares its key with Look here in the context radial.
 		boolean eye = act == RhCommands.CTX_LOOK;
 
@@ -2203,7 +3042,7 @@ public class RhOverlay extends FrameLayout
 
 	private int countFor(RhCommands.ContextAction act)
 	{
-		return RhPrefs.count(act.key, act.defaultCount);
+		return RhPrefs.count(act.countKey, act.defaultCount);
 	}
 
 	// ____________________________________________________________________________________
@@ -2213,15 +3052,15 @@ public class RhOverlay extends FrameLayout
 	// constantly -- s20 down a dead end, s5 while suspicious, one careful s after a
 	// magic trap has blinded you with monsters closing in.
 
-	private void buildChipRow(final int index, float leftDp, float bottomDp)
+	private void buildChipRow(final int index, LayoutParams where)
 	{
 		LinearLayout row = new LinearLayout(mContext);
 		row.setOrientation(LinearLayout.HORIZONTAL);
 		row.setVisibility(GONE);
 
-		// Left-anchored to its button, not centred: centred, the row's 188dp reaches
+		// Anchored to its button, not centred: centred, the row's 188dp reaches
 		// back over the numpad's right column and takes taps from a live movement key.
-		addView(row, boxLB(CHIP_ROW_W, CHIP_SIZE, leftDp, bottomDp));
+		addView(row, where);
 		mChipRows.add(row);
 
 		for(int c = 0; c < RhCommands.COUNT_CHOICES.length; c++)
@@ -2248,7 +3087,7 @@ public class RhOverlay extends FrameLayout
 					if(act == null)
 						return;
 					RhPrefs.saveCount(PreferenceManager.getDefaultSharedPreferences(mContext),
-					                  act.key, value);
+					                  act.countKey, value);
 					closeChips();
 				}
 			});
@@ -2263,7 +3102,7 @@ public class RhOverlay extends FrameLayout
 		closeFan();
 		closeRadial();
 		closeContextRadial();
-		mChipsOpen = act.key;
+		mChipsOpen = act.countKey;
 		refreshContextStrip();
 	}
 
@@ -2281,7 +3120,7 @@ public class RhOverlay extends FrameLayout
 		{
 			RhCommands.ContextAction act = contextAction(i);
 			ViewGroup row = mChipRows.get(i);
-			boolean open = act != null && act.isCounted() && act.key.equals(mChipsOpen);
+			boolean open = act != null && act.isCounted() && act.countKey.equals(mChipsOpen);
 			row.setVisibility(open ? VISIBLE : GONE);
 			if(!open)
 				continue;
@@ -2308,15 +3147,6 @@ public class RhOverlay extends FrameLayout
 	 */
 	private void buildPrayColumn()
 	{
-		LinearLayout column = new LinearLayout(mContext);
-		column.setOrientation(LinearLayout.VERTICAL);
-
-		LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-		lp.gravity = Gravity.TOP | Gravity.LEFT;
-		lp.leftMargin = RhTheme.dpi(mContext, 10f);
-		lp.topMargin  = RhTheme.dpi(mContext, 92f);
-		addView(column, lp);
-
 		// One face since 2026-09-23: tap to sacrifice, hold to pray (Lucas).  Prayer
 		// keeps its own "Are you sure you want to pray?" confirmation, so a hold that
 		// lands by accident while sacrifice-farming costs a keypress, not a prayer
@@ -2326,8 +3156,25 @@ public class RhOverlay extends FrameLayout
 				.face(RhTheme.A90)
 				.label("SACRIFICE", 7.5f, 0.02f)
 				.sub("hold · pray", 7f, RhTheme.TEXT, 0.75f);
-		column.addView(f, new LinearLayout.LayoutParams(
-				RhTheme.dpi(mContext, 58f), RhTheme.dpi(mContext, 44f)));
+
+		if(mTerm)
+		{
+			// The left bank's second row, still the far end of it from the thumb.
+			addView(f, boxTL(T_KEY, T_KEY, termInner(), termRow2Top()));
+			mTermRow2.add(f);
+		}
+		else
+		{
+			LinearLayout column = new LinearLayout(mContext);
+			column.setOrientation(LinearLayout.VERTICAL);
+			LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+			lp.gravity = Gravity.TOP | Gravity.LEFT;
+			lp.leftMargin = RhTheme.dpi(mContext, 10f);
+			lp.topMargin  = RhTheme.dpi(mContext, 92f);
+			addView(column, lp);
+			column.addView(f, new LinearLayout.LayoutParams(
+					RhTheme.dpi(mContext, 58f), RhTheme.dpi(mContext, 44f)));
+		}
 		bindHold(f, HUB_HOLD_MS,
 			new Runnable() { @Override public void run() { execute(RhCommands.PRAY, f); } },
 			new Runnable() { @Override public void run() { execute(RhCommands.SACRIFICE, f); } });
@@ -2373,18 +3220,22 @@ public class RhOverlay extends FrameLayout
 	/** Everything the player does not touch mid-fight, out of thumb range on purpose. */
 	private void buildTopRight()
 	{
-		float right = 10f;
+		// Terminal style: four equal keys across the right bank's top row.
+		int n = RhCommands.TOP_RIGHT.length;
+		float termW = (mPadBox - (n - 1) * T_GAP) / n;
+		float right = mTerm ? termInner() : 10f;
 		for(int i = RhCommands.TOP_RIGHT.length - 1; i >= 0; i--)
 		{
 			final RhCommands.RowFace spec = RhCommands.TOP_RIGHT[i];
 			final RhFace f = new RhFace(mContext)
 					.face(RhTheme.G90)
 					.label(spec.label, 9f, 0.06f);
-			LayoutParams lp = new LayoutParams(RhTheme.dpi(mContext, spec.w),
-			                                   RhTheme.dpi(mContext, spec.h));
+			float w = mTerm ? termW : spec.w;
+			LayoutParams lp = new LayoutParams(RhTheme.dpi(mContext, w),
+			                                   RhTheme.dpi(mContext, mTerm ? T_ROW1_H : spec.h));
 			lp.gravity = Gravity.TOP | Gravity.RIGHT;
 			lp.rightMargin = RhTheme.dpi(mContext, right);
-			lp.topMargin   = RhTheme.dpi(mContext, 46f);
+			lp.topMargin   = RhTheme.dpi(mContext, mTerm ? termInner() : 46f);
 			addView(f, lp);
 			bindTap(f, new Runnable()
 			{
@@ -2400,7 +3251,7 @@ public class RhOverlay extends FrameLayout
 				}
 			});
 			mTopRight.add(f);
-			right += spec.w + 6f;
+			right += w + (mTerm ? T_GAP : 6f);
 		}
 	}
 
@@ -2422,6 +3273,11 @@ public class RhOverlay extends FrameLayout
 
 	private void openDrawer(String groupId)
 	{
+		openDrawer(groupId, null);
+	}
+
+	private void openDrawer(String groupId, RhCommands.Hub from)
+	{
 		closeCandidates();
 		RhCommands.Group g = RhCommands.group(groupId);
 		if(g == null)
@@ -2430,6 +3286,7 @@ public class RhOverlay extends FrameLayout
 		closeContextRadial();
 		disarm();
 		mDrawerOpen = groupId;
+		mDrawerHub = from;
 		mDrawer.show(g, drawerItems(g));
 		updateDrawerButtonFaces();
 	}
@@ -2456,6 +3313,7 @@ public class RhOverlay extends FrameLayout
 		if(mDrawerOpen == null)
 			return;
 		mDrawerOpen = null;
+		mDrawerHub = null;
 		mDrawer.hide();
 		updateDrawerButtonFaces();
 	}
@@ -3028,14 +3886,20 @@ public class RhOverlay extends FrameLayout
 		// for an app restart.
 		mPadCell = RhPrefs.padCell();
 		mPadBox  = 3 * mPadCell + 2 * PAD_GAP;
-		// Labels and scale both change every face, so rebuild rather than patch.
+		updateFitLimit();
+		rebuild();
+	}
+
+	/** Labels and scale both change every face, so rebuild rather than patch. */
+	private void rebuild()
+	{
 		removeAllViews();
 		mPadCells.clear();
 		// Every face list must be emptied here.  mMacroFaces was missed: the rebuilt
 		// macro face went in at index 1 while refreshMacroFace(0) kept labelling the
 		// detached one, so after any visit to Settings the header's macro slot drew
 		// blank -- and still ran, because a tap reads the prefs, not the face.
-		mMacroFaces.clear();
+		java.util.Arrays.fill(mMacroFaces, null);
 		mCtxCandidates.clear();
 		mCandOpen = false;
 		mWedges = null;
@@ -3051,6 +3915,9 @@ public class RhOverlay extends FrameLayout
 		mCtxRadialOpen = false;
 		mRadialOpen = null;
 		mRadials.clear();
+		mAssign = null;
+		mAssignHub = null;
+		mDrawerHub = null;
 		build();
 		statusUpdated(mStatus);
 		setMessage(mMessageText);
@@ -3071,6 +3938,8 @@ public class RhOverlay extends FrameLayout
 	private void applyVisibility()
 	{
 		setVisibility(RhPrefs.enabled() && !mPortrait && !mSuppressed ? VISIBLE : GONE);
+		// The terminal frames the map only while it is showing.
+		mHost.mapAreaChanged();
 	}
 
 	/**
@@ -3087,14 +3956,17 @@ public class RhOverlay extends FrameLayout
 		applyVisibility();
 	}
 
+	/**
+	 * Back closes whatever the interface has open -- a drawer, then any fan,
+	 * radial, chip row or pin in hand -- before it reaches the game.  It never
+	 * did: nothing called this, so Back went to the core and on to the system,
+	 * which closed the app with a radial up (Lucas, 2026-09-24).
+	 */
 	public boolean onBackPressed()
 	{
-		if(mChipsOpen != null)   { closeChips(); return true; }
-		if(mAssign != null)      { cancelAssignment(); return true; }
 		if(mDrawerOpen != null)  { closeDrawer(); return true; }
-		if(mRadialOpen != null)  { closeRadial(); return true; }
-		if(mCtxRadialOpen)       { closeContextRadial(); return true; }
-		if(mFanOpen != null)     { closeFan(); return true; }
+		if(dismissPopups())      return true;
+		if(mRestWell != null && mRestWell.isRevealed()) { mRestWell.scrollTo(false); return true; }
 		if(mArmed != null)       { disarm(); mHost.sendCommand("\\e"); return true; }
 		return false;
 	}

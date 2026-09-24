@@ -113,6 +113,42 @@
 				android:key="rhEnabled"/>
 
 			<ListPreference
+				android:title="Style"
+				android:summary="Terminal: keycaps in a case, the map framed as a screen, in dark, light or GameCube colours. Colourful: controls float over the map"
+				android:persistent="true"
+				android:key="rhStyle"
+				android:defaultValue="terminal"
+				android:entries="@array/rhStyleNames"
+				android:entryValues="@array/rhStyleValues"/>
+
+			<ListPreference
+				android:title="Screen phosphor"
+				android:summary="Terminal style: the colour of the message and status lines"
+				android:persistent="true"
+				android:key="rhPhosphor"
+				android:defaultValue="color"
+				android:entries="@array/rhPhosphorNames"
+				android:entryValues="@array/rhPhosphorValues"/>
+
+			<ListPreference
+				android:title="Screen font"
+				android:summary="Terminal styles: the message and status lines"
+				android:persistent="true"
+				android:key="rhScreenFont"
+				android:defaultValue="vt323"
+				android:entries="@array/rhScreenFontNames"
+				android:entryValues="@array/rhScreenFontValues"/>
+
+			<ListPreference
+				android:title="Key font"
+				android:summary="Terminal styles: the keycap legends"
+				android:persistent="true"
+				android:key="rhKeyFont"
+				android:defaultValue="plex"
+				android:entries="@array/rhKeyFontNames"
+				android:entryValues="@array/rhKeyFontValues"/>
+
+			<ListPreference
 				android:title="Labels"
 				android:summary="What the control faces read"
 				android:persistent="true"

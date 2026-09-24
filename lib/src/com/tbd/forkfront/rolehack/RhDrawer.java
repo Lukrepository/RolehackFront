@@ -56,6 +56,14 @@ public class RhDrawer extends FrameLayout
 	private final Panel mPanel;
 	private final TitleBar mTitle;
 	private final LinearLayout mGrid;
+	/**
+	 * ASSIGN, in the title bar (Lucas, 2026-09-24).  While it is lit, tapping a
+	 * command picks it up for pinning instead of running it -- the long press
+	 * did that all along, but nothing on screen said so.
+	 */
+	private final RhFace mAssign;
+	private boolean mAssigning;
+	private String mCount = "";
 
 	// ____________________________________________________________________________________
 	public RhDrawer(Context context, Listener listener)
@@ -64,11 +72,13 @@ public class RhDrawer extends FrameLayout
 		mContext = context;
 		mListener = listener;
 
-		// The scrim covers the map only, not the header band.
+		// The scrim covers the map only, not the header band -- except in the
+		// terminal style, which has no header band, so it covers everything.
 		mScrim = new View(context);
 		mScrim.setBackgroundColor(RhTheme.MODAL_SCRIM);
 		LayoutParams scrimLp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-		scrimLp.topMargin = RhTheme.rawDpi(context, RhTheme.HEADER_HEIGHT);
+		if(!RhTheme.terminal())
+			scrimLp.topMargin = RhTheme.rawDpi(context, RhTheme.HEADER_HEIGHT);
 		addView(mScrim, scrimLp);
 		mScrim.setOnClickListener(new OnClickListener()
 		{
@@ -88,8 +98,26 @@ public class RhDrawer extends FrameLayout
 
 		mPanel.setOrientation(LinearLayout.VERTICAL);
 
+		// Title bar: the group's name, and ASSIGN at its right end.
+		FrameLayout titleRow = new FrameLayout(context);
 		mTitle = new TitleBar(context);
-		mPanel.addView(mTitle, new LinearLayout.LayoutParams(
+		titleRow.addView(mTitle, new FrameLayout.LayoutParams(
+				ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+		mAssign = new RhFace(context).radius(3f).label("ASSIGN", 8.5f, 0.08f);
+		FrameLayout.LayoutParams alp = new FrameLayout.LayoutParams(
+				RhTheme.dpi(context, 84f), RhTheme.dpi(context, TITLE_H - 6f));
+		alp.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
+		alp.rightMargin = RhTheme.dpi(context, 4f);
+		titleRow.addView(mAssign, alp);
+		mAssign.setOnClickListener(new OnClickListener()
+		{
+			@Override
+			public void onClick(View v)
+			{
+				setAssigning(!mAssigning);
+			}
+		});
+		mPanel.addView(titleRow, new LinearLayout.LayoutParams(
 				ViewGroup.LayoutParams.MATCH_PARENT, RhTheme.dpi(context, TITLE_H)));
 
 		ScrollView scroll = new ScrollView(context);
@@ -113,7 +141,9 @@ public class RhDrawer extends FrameLayout
 	 */
 	public void show(RhCommands.Group group, RhCommands.Item[] items)
 	{
-		mTitle.set(group.title, items.length + " commands");
+		mCount = items.length + " commands";
+		setAssigning(false);
+		mTitle.set(group.title, mCount);
 		mGrid.removeAllViews();
 
 		int gap = RhTheme.dpi(mContext, GAP);
@@ -152,7 +182,10 @@ public class RhDrawer extends FrameLayout
 				@Override
 				public void onClick(View v)
 				{
-					mListener.onItem(item, f);
+					if(mAssigning)
+						mListener.onItemPin(item);
+					else
+						mListener.onItem(item, f);
 				}
 			});
 			f.setOnLongClickListener(new OnLongClickListener()
@@ -186,6 +219,16 @@ public class RhDrawer extends FrameLayout
 	{
 		setVisibility(GONE);
 		mGrid.removeAllViews();
+		mAssigning = false;
+	}
+
+	private void setAssigning(boolean on)
+	{
+		mAssigning = on;
+		mAssign.face(on ? RhTheme.A90 : RhTheme.G90)
+		       .textColor(on ? RhTheme.BADGE_TEXT : RhTheme.TEXT)
+		       .label(on ? "ASSIGNING" : "ASSIGN", 8.5f, 0.08f);
+		mTitle.setCount(on ? "tap a command to pin it" : mCount);
 	}
 
 	// ____________________________________________________________________________________
@@ -273,6 +316,12 @@ public class RhDrawer extends FrameLayout
 		void set(String title, String count)
 		{
 			mTitle = title;
+			mCount = count;
+			invalidate();
+		}
+
+		void setCount(String count)
+		{
 			mCount = count;
 			invalidate();
 		}

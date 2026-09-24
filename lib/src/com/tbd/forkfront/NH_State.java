@@ -244,6 +244,12 @@ public class NH_State
 		if(ret == KeyEventResult.RETURN_TO_SYSTEM)
 			return false;
 
+		// Rolehack: an open fan, radial, drawer or chip row closes on Back before the
+		// key goes anywhere else.  Nothing called rolehackBackPressed(), so Back went
+		// on to the core and the system and closed the app (Lucas, 2026-09-24).
+		if(keyCode == KeyEvent.KEYCODE_BACK && rolehackBackPressed())
+			return true;
+
 		if(keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_HOME)
 		{
 			if(mMode == CmdMode.Keyboard)
@@ -593,6 +599,12 @@ public class NH_State
 			{
 				NH_State.this.toggleKeyboard();
 			}
+
+			@Override
+			public void mapAreaChanged()
+			{
+				applyMapArea();
+			}
 		});
 
 		if(mRolehackUI != null)
@@ -656,7 +668,24 @@ public class NH_State
 	// ____________________________________________________________________________________
 	public void viewAreaChanged(Rect viewRect)
 	{
-		mMap.viewAreaChanged(viewRect);
+		mViewRect.set(viewRect);
+		applyMapArea();
+	}
+
+	/**
+	 * Rolehack: the terminal style frames the map as a screen, so the map centres
+	 * in the glass rather than in the whole view area.  The map view still covers
+	 * the window; the interface's case hides everything outside the glass and
+	 * takes every touch there.
+	 */
+	private final Rect mViewRect = new Rect();
+
+	private void applyMapArea()
+	{
+		if(mMap == null || mViewRect.isEmpty())
+			return;
+		Rect glass = mRolehackUI != null ? mRolehackUI.mapArea() : null;
+		mMap.viewAreaChanged(glass != null ? glass : mViewRect);
 	}
 
 	// ____________________________________________________________________________________

@@ -47,12 +47,16 @@ public class RhBadges extends View
 	                                  RhTheme.COND_IMPAIR_TEXT, RhTheme.COND_MOVE_TEXT };
 	private static final int MORE_BG = 0xff2a302d, MORE_FG = 0xffffffff;
 
-	private static final class Badge
+	/** One badge; the terminal style's status line draws the same list (RhScreen). */
+	static final class Badge
 	{
 		final String text;
 		final int tier, order;
 		Badge(String text, int tier, int order) { this.text = text; this.tier = tier; this.order = order; }
 	}
+
+	static int bg(int tier) { return BG[tier]; }
+	static int fg(int tier) { return FG[tier]; }
 
 	private final Paint mText = new Paint(Paint.ANTI_ALIAS_FLAG);
 	private final Paint mFill = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -84,22 +88,27 @@ public class RhBadges extends View
 		invalidate();
 	}
 
-	/** Hunger, encumbrance and conditions, sorted worst tier first; stable within a tier. */
 	private List<Badge> badges()
 	{
+		return badgesFor(mStatus);
+	}
+
+	/** Hunger, encumbrance and conditions, sorted worst tier first; stable within a tier. */
+	static List<Badge> badgesFor(RhStatus status)
+	{
 		List<Badge> out = new ArrayList<Badge>();
-		if(mStatus == null)
+		if(status == null)
 			return out;
 
 		int n = 0;
-		for(RhStatus.Condition c : mStatus.activeConditions())
+		for(RhStatus.Condition c : status.activeConditions())
 		{
 			int tier = c.severity == RhStatus.SEVERITY_DEADLY ? TIER_CRITICAL
 					: c.severity == RhStatus.SEVERITY_IMPAIR ? TIER_WARNING : TIER_INFO;
 			out.add(new Badge(c.name.toUpperCase(), tier, n++));
 		}
 
-		String h = mStatus.value(RhStatus.BL_HUNGER);
+		String h = status.value(RhStatus.BL_HUNGER);
 		if(h != null && h.trim().length() > 0)
 		{
 			String k = h.trim().toLowerCase();
@@ -108,7 +117,7 @@ public class RhBadges extends View
 			out.add(new Badge(h.trim().toUpperCase(), tier, 100));
 		}
 
-		String cap = mStatus.value(RhStatus.BL_CAP);
+		String cap = status.value(RhStatus.BL_CAP);
 		if(cap != null && cap.trim().length() > 0)
 		{
 			String k = cap.trim().toLowerCase();

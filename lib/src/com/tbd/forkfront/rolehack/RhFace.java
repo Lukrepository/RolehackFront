@@ -9,6 +9,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.os.Build;
@@ -84,6 +85,19 @@ public class RhFace extends View
 
 	private boolean mPressedFace;
 	private boolean mPlaceholder;
+
+	// Terminal style: see drawKeycap().
+	/** A keycap family that overrides the one the face colour implies, or null. */
+	private int[] mCap;
+	private int[] mDefaultCap;
+	private String mTag;
+	public static final int LAMP_NONE = 0, LAMP_OFF = 1, LAMP_ON = 2;
+	private int mLamp = LAMP_NONE;
+	/** Backlit legend: the context key while it has something to offer. */
+	private boolean mLit;
+	private final RectF mCapSkirt = new RectF();
+	private final RectF mCapTop   = new RectF();
+	private final Path  mArrow    = new Path();
 	private final float mBorderW;
 	private final float mBevel;
 	private final float mShadowDy;
@@ -158,6 +172,21 @@ public class RhFace extends View
 
 	public int[] faceTokens() { return mFace; }
 
+	/** Terminal style: draw this face in a given keycap family whatever its colour. */
+	public RhFace cap(int[] family) { mCap = family; invalidate(); return this; }
+	/**
+	 * Terminal style: the family for this key while it wears the default colour.
+	 * A pinned slot that holds Wear takes it; one that holds Take off keeps the
+	 * slate its command asks for.
+	 */
+	public RhFace defaultCap(int[] family) { mDefaultCap = family; invalidate(); return this; }
+	/** Terminal style: a short tag in the face's top-left corner, where a raw key would sit. */
+	public RhFace tag(String t)     { mTag = t; invalidate(); return this; }
+	/** Terminal style: a small indicator window in the keycap's top-right corner. */
+	public RhFace lamp(int state)   { mLamp = state; invalidate(); return this; }
+	/** Terminal style: a backlit amber legend. */
+	public RhFace lit(boolean on)   { mLit = on; invalidate(); return this; }
+
 	public RhFace label(String text, float sizeDp, float tracking)
 	{
 		mLabelSizeDp = sizeDp;
@@ -189,7 +218,8 @@ public class RhFace extends View
 		if(mPressedFace == pressed)
 			return;
 		mPressedFace = pressed;
-		if(mShape == Shape.RECT)
+		// A keycap sinks inside its own skirt (drawKeycap), so the view stays put.
+		if(mShape == Shape.RECT && !RhTheme.terminal())
 			setTranslationY(pressed ? RhTheme.dp(getContext(), RhTheme.PRESS_SINK_DP) : 0f);
 		invalidate();
 	}
@@ -304,6 +334,12 @@ public class RhFace extends View
 	@Override
 	protected void onDraw(Canvas canvas)
 	{
+		if(RhTheme.terminal())
+		{
+			drawKeycap(canvas);
+			return;
+		}
+
 		if(mInnerPath.isEmpty())
 			rebuildPaths(getWidth(), getHeight());
 
@@ -378,6 +414,241 @@ public class RhFace extends View
 	}
 
 	// ____________________________________________________________________________________
+	// Terminal style: a sculpted keycap, per the design canvas's recipe.
+	//
+	// The skirt is lit from the left and darkens toward the bottom; the top face
+	// is a dished rounded rectangle set back from a front skirt that is taller than
+	// the sides, which is what makes the key read as raised; a hard 2dp shadow and
+	// a soft blur fall onto the well.  The tap legend sits on the top face, a hold
+	// legend is printed on the front skirt, and a raw key sits in the face's
+	// top-left corner.  Pressed, the face drops inside its skirt and the shadow
+	// shortens -- the view itself never moves.
+	//
+	// Every shape draws as the same keycap.  Silhouettes told the hubs apart when
+	// colour alone could not; a keyboard does that with size and position instead.
+
+	private final RectF mLampRect = new RectF();
+	private final Paint mArrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+	/** The front skirt's height: about a fifth of the key, within 7..12dp. */
+	private float capFront(float h)
+	{
+		return Math.max(RhTheme.dp(getContext(), 7f), Math.min(RhTheme.dp(getContext(), 12f), h * 0.2f));
+	}
+
+	private void capGeometry()
+	{
+		Context c = getContext();
+		float w = getWidth(), h = getHeight();
+		float shadow = RhTheme.dp(c, 2.5f);
+		float front = capFront(h);
+		float side = Math.min(RhTheme.dp(c, 4f), w / 12f);
+		float sink = mPressedFace ? Math.max(0f, Math.min(RhTheme.dp(c, 3f), front - RhTheme.dp(c, 3f))) : 0f;
+		mCapSkirt.set(0f, 0f, w, h - shadow);
+		mCapTop.set(side, RhTheme.dp(c, 2f) + sink, w - side, h - shadow - front + sink);
+	}
+
+	private int[] capFamily()
+	{
+		if(mCap != null)
+			return mCap;
+		if(mPlaceholder)
+			return RhTheme.capFor(RhTheme.G90);
+		if(mDefaultCap != null && (mFace == RhTheme.G90 || mFace == null))
+			return mDefaultCap;
+		return RhTheme.capFor(mFace);
+	}
+
+	/** Raw keys ride in the sub-line in the raw-key colours; anything else there is a hint. */
+	private boolean subIsRawKey()
+	{
+		return mSubColor == RhTheme.RAW_KEY || mSubColor == RhTheme.RAW_KEY_DIM;
+	}
+
+	private boolean hasRawKey()
+	{
+		return mSub != null && mSub.length() > 0 && subIsRawKey();
+	}
+
+	/** The front-skirt legend: a hold hint, shortened to what the hold does. */
+	private String holdLegend()
+	{
+		if(mSub == null || mSub.length() == 0 || subIsRawKey())
+			return null;
+		String t = mSub.trim();
+		if(t.startsWith("hold · "))
+			t = t.substring(7);
+		else if(t.equals("hold to set"))
+			t = "set ×n";
+		else if(t.equals("hold to edit"))
+			t = "edit";
+		return t.toUpperCase();
+	}
+
+	/** The numpad's arrow labels become drawn arrows; NaN for any other label. */
+	private static float arrowDegrees(String s)
+	{
+		if(s == null || s.length() != 1)
+			return Float.NaN;
+		switch(s.charAt(0))
+		{
+			case '↑': return 0f;
+			case '↗': return 45f;
+			case '→': return 90f;
+			case '↘': return 135f;
+			case '↓': return 180f;
+			case '↙': return 225f;
+			case '←': return 270f;
+			case '↖': return 315f;
+		}
+		return Float.NaN;
+	}
+
+	private void drawKeycap(Canvas canvas)
+	{
+		Context c = getContext();
+		int[] cap = capFamily();
+		capGeometry();
+		if(mLabelDirty)
+			fitLabel();
+
+		float w = getWidth();
+		float r = Math.min(RhTheme.dp(c, 6f), mCapSkirt.height() / 5f);
+		float fr = Math.max(0f, r - RhTheme.dp(c, 1f));
+
+		// Shadows onto the well: the soft blur, then the hard edge.
+		canvas.save();
+		canvas.translate(0f, RhTheme.dp(c, mPressedFace ? 1f : 2f));
+		canvas.drawRoundRect(mCapSkirt, r, r, mShadow);
+		mBand.setShader(null);
+		mBand.setColor(0x8c000000);
+		canvas.drawRoundRect(mCapSkirt, r, r, mBand);
+		canvas.restore();
+
+		// The skirt, lit from the left, darkening toward the front.
+		mFill.setShader(new LinearGradient(mCapSkirt.left, 0f, mCapSkirt.right, 0f,
+				new int[] { cap[RhTheme.CAP_SL], cap[RhTheme.CAP_SM], cap[RhTheme.CAP_SM], cap[RhTheme.CAP_SR] },
+				new float[] { 0f, 0.14f, 0.86f, 1f }, Shader.TileMode.CLAMP));
+		canvas.drawRoundRect(mCapSkirt, r, r, mFill);
+		// Opaque first: the paint's alpha would scale the gradient.
+		mBand.setColor(0xff000000);
+		mBand.setShader(new LinearGradient(0f, mCapSkirt.top, 0f, mCapSkirt.bottom,
+				new int[] { 0x24ffffff, 0x00ffffff, 0x52000000 },
+				new float[] { 0f, 0.3f, 1f }, Shader.TileMode.CLAMP));
+		canvas.drawRoundRect(mCapSkirt, r, r, mBand);
+		mBand.setShader(null);
+
+		// The hold legend goes down before the face, so a pressed face covers it
+		// the way a real keycap's top hides its own front print.
+		String hold = holdLegend();
+		if(hold != null)
+		{
+			mText.setTypeface(RhTheme.capFont(getContext()));
+			mText.setTextAlign(Paint.Align.CENTER);
+			setTracking(mText, 0.09f);
+			float size = RhTheme.dp(c, 7.5f);
+			float avail = w - 2 * mCapTop.left - RhTheme.dp(c, 2f);
+			mText.setTextSize(size);
+			while(size > RhTheme.dp(c, 5.5f) && mText.measureText(hold) > avail)
+			{
+				size *= 0.92f;
+				mText.setTextSize(size);
+			}
+			mText.setColor(cap[RhTheme.CAP_HOLD]);
+			Paint.FontMetrics fm = mText.getFontMetrics();
+			float bandTop = mCapSkirt.bottom - capFront(getHeight());
+			float mid = (bandTop + mCapSkirt.bottom) / 2f;
+			canvas.drawText(hold, w / 2f, mid - (fm.ascent + fm.descent) / 2f, mText);
+		}
+
+		// The top face: a dish, brightest a little above centre, with a lit rim.
+		float fw = mCapTop.width(), fh = mCapTop.height();
+		if(fw <= 0f || fh <= 0f)
+			return;
+		mFill.setShader(new RadialGradient(mCapTop.centerX(), mCapTop.top + fh * 0.15f,
+				Math.max(fw, fh) * 0.95f, new int[] { cap[RhTheme.CAP_T1], cap[RhTheme.CAP_T2] },
+				new float[] { 0f, 0.85f }, Shader.TileMode.CLAMP));
+		canvas.drawRoundRect(mCapTop, fr, fr, mFill);
+		mBand.setColor(mPressedFace ? 0x38ffffff : 0x66ffffff);
+		canvas.drawRect(mCapTop.left + fr, mCapTop.top, mCapTop.right - fr,
+		                mCapTop.top + RhTheme.dp(c, 1f), mBand);
+
+		if(mLamp != LAMP_NONE)
+		{
+			float inset = RhTheme.dp(c, 4f);
+			mLampRect.set(mCapTop.right - inset - RhTheme.dp(c, 10f), mCapTop.top + inset,
+			              mCapTop.right - inset, mCapTop.top + inset + RhTheme.dp(c, 4f));
+			boolean on = mLamp == LAMP_ON;
+			mBand.setColor(on ? RhTheme.LAMP_AMBER : RhTheme.LAMP_AMBER_OFF);
+			if(on)
+				mBand.setShadowLayer(RhTheme.dp(c, 4f), 0f, 0f, RhTheme.LAMP_AMBER);
+			canvas.drawRoundRect(mLampRect, RhTheme.dp(c, 2f), RhTheme.dp(c, 2f), mBand);
+			mBand.clearShadowLayer();
+		}
+
+		int legend = mLit ? RhTheme.CAP_LIT : cap[RhTheme.CAP_LEGEND];
+		int legendAlpha = mPlaceholder ? 110 : 255;
+
+		String corner = hasRawKey() ? mSub : mTag;
+		if(corner != null && corner.length() > 0)
+		{
+			mText.setTypeface(RhTheme.capFont(getContext()));
+			mText.setTextAlign(Paint.Align.LEFT);
+			setTracking(mText, 0f);
+			mText.setTextSize(Math.min(RhTheme.dp(c, 8.5f), fh * 0.32f));
+			mText.setColor(cap[RhTheme.CAP_RAW]);
+			Paint.FontMetrics fm = mText.getFontMetrics();
+			canvas.drawText(corner, mCapTop.left + RhTheme.dp(c, 3f),
+			                mCapTop.top + RhTheme.dp(c, 2f) - fm.ascent, mText);
+		}
+
+		float deg = arrowDegrees(mLabelRaw);
+		if(!Float.isNaN(deg))
+		{
+			float a = Math.min(fw, fh) * 0.24f;
+			mArrowPaint.setStyle(Paint.Style.STROKE);
+			mArrowPaint.setStrokeCap(Paint.Cap.ROUND);
+			mArrowPaint.setStrokeJoin(Paint.Join.ROUND);
+			mArrowPaint.setStrokeWidth(a * 0.23f);
+			mArrowPaint.setColor(legend);
+			mArrowPaint.setAlpha(legendAlpha);
+			mArrow.reset();
+			mArrow.moveTo(0f, a);
+			mArrow.lineTo(0f, -a);
+			mArrow.moveTo(-0.55f * a, -0.45f * a);
+			mArrow.lineTo(0f, -a);
+			mArrow.lineTo(0.55f * a, -0.45f * a);
+			canvas.save();
+			canvas.translate(mCapTop.centerX(), mCapTop.centerY());
+			canvas.rotate(deg);
+			canvas.drawPath(mArrow, mArrowPaint);
+			canvas.restore();
+			return;
+		}
+
+		if(mLabelLines.length == 0)
+			return;
+		mText.setTypeface(RhTheme.capFont(getContext()));
+		mText.setTextAlign(Paint.Align.CENTER);
+		setTracking(mText, 0.05f);
+		mText.setTextSize(mFittedSizePx);
+		mText.setColor(legend);
+		mText.setAlpha(legendAlpha);
+		if(mLit)
+			mText.setShadowLayer(RhTheme.dp(c, 5f), 0f, 0f, 0xbfffaa3c);
+		Paint.FontMetrics fm = mText.getFontMetrics();
+		float lineH = mFittedSizePx * mLabelLeading;
+		float y = mCapTop.top + (fh - mLabelLines.length * lineH) / 2f;
+		for(String line : mLabelLines)
+		{
+			float baseline = y + (lineH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
+			canvas.drawText(line, mCapTop.centerX(), baseline, mText);
+			y += lineH;
+		}
+		mText.clearShadowLayer();
+	}
+
+	// ____________________________________________________________________________________
 	private void drawLabel(Canvas canvas)
 	{
 		if(mLabelDirty)
@@ -445,7 +716,10 @@ public class RhFace extends View
 	private void fitLabel()
 	{
 		mLabelDirty = false;
-		mFittedSizePx = RhTheme.dp(getContext(), mLabelSizeDp);
+		boolean keycap = RhTheme.terminal();
+		// A condensed face sets the same words narrower, so keycap legends run a
+		// little larger than the Space Mono labels they replace.
+		mFittedSizePx = RhTheme.dp(getContext(), keycap ? Math.max(mLabelSizeDp, 8f) * 1.15f : mLabelSizeDp);
 
 		if(mLabelRaw.length() == 0)
 		{
@@ -473,22 +747,39 @@ public class RhFace extends View
 		// Usable width inside the border.  A circle is narrower than its box
 		// wherever the text actually sits, so allow for the chord rather than the
 		// diameter.
-		float avail = w - 2 * mBorderW - RhTheme.dp(getContext(), 3f)
-		              - RhTheme.dp(getContext(), mLabelPadRightDp);
-		if(mShape == Shape.CIRCLE)
-			avail *= 0.86f;
-		else if(mShape == Shape.PATH)
-			avail *= 0.72f; // silhouettes are narrower than their box wherever text sits
-		else if(mShape == Shape.LENS)
-			avail *= 0.8f;  // the eye is full width only exactly on its centreline
+		float avail;
+		if(keycap)
+		{
+			capGeometry();
+			avail = mCapTop.width() - RhTheme.dp(getContext(), 6f);
+		}
+		else
+		{
+			avail = w - 2 * mBorderW - RhTheme.dp(getContext(), 3f)
+			        - RhTheme.dp(getContext(), mLabelPadRightDp);
+			if(mShape == Shape.CIRCLE)
+				avail *= 0.86f;
+			else if(mShape == Shape.PATH)
+				avail *= 0.72f; // silhouettes are narrower than their box wherever text sits
+			else if(mShape == Shape.LENS)
+				avail *= 0.8f;  // the eye is full width only exactly on its centreline
+		}
 		if(avail <= 0)
 		{
 			mLabelLines = new String[] { text };
 			return;
 		}
 
-		mText.setTypeface(mLabelInOutfit ? RhTheme.outfitSemi(getContext()) : RhTheme.monoBold(getContext()));
-		setTracking(mText, mLabelTracking);
+		if(keycap)
+		{
+			mText.setTypeface(RhTheme.capFont(getContext()));
+			setTracking(mText, 0.05f);
+		}
+		else
+		{
+			mText.setTypeface(mLabelInOutfit ? RhTheme.outfitSemi(getContext()) : RhTheme.monoBold(getContext()));
+			setTracking(mText, mLabelTracking);
+		}
 
 		float size = mFittedSizePx;
 		float minSize = RhTheme.dp(getContext(), 6f);
@@ -496,7 +787,11 @@ public class RhFace extends View
 		{
 			mText.setTextSize(size);
 			String[] lines = wrap(text, avail);
-			if(lines != null || size <= minSize)
+			// A keycap's face is shorter than its box, so its legend must fit the
+			// height as well as the width.
+			boolean fits = lines != null
+					&& (!keycap || lines.length * size * mLabelLeading <= mCapTop.height());
+			if(fits || size <= minSize)
 			{
 				mLabelLines = lines != null ? lines : new String[] { text };
 				mFittedSizePx = size;

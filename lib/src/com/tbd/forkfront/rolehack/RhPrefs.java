@@ -57,7 +57,12 @@ public final class RhPrefs
 	 * writes Enter as the two characters backslash-n, so newline is free to be
 	 * the delimiter here as everywhere else in these prefs.
 	 */
-	public static final int MACRO_SLOTS = 1;
+	/**
+	 * Three since 2026-09-24 (Lucas): the terminal style's right bank had two
+	 * spare keys, and macros were what he wanted in them.  Stored as before, so
+	 * the first slot keeps what it held.
+	 */
+	public static final int MACRO_SLOTS = 3;
 	private static String[] sMacros = new String[2 * MACRO_SLOTS];
 
 	public static void load(SharedPreferences prefs)
@@ -82,6 +87,41 @@ public final class RhPrefs
 		                         RhCommands.EQUIP_SLOT_DEFAULT);
 		String counts = prefs.getString(KEY_COUNTS, "");
 		sCounts = counts.length() == 0 ? new String[0] : counts.split("\n", -1);
+
+		sFans.clear();
+		for(RhCommands.Hub h : RhCommands.HUBS)
+		{
+			if(h.fan.length == 0)
+				continue;
+			String[] def = new String[h.fan.length];
+			for(int i = 0; i < def.length; i++)
+				def[i] = h.fan[i].key;
+			sFans.put(h.id, parseSlots(prefs.getString(KEY_FAN_PREFIX + h.id, null), def));
+		}
+	}
+
+	/**
+	 * A hub's fan, as keys, one per node (2026-09-24).  The fans were fixed; Lucas
+	 * asked for INTERACT's to be assignable the way OFFENSE's points are, and the
+	 * same code serves DROP and EAT/QUAFF/READ.  Defaults are the fans as shipped.
+	 */
+	/**
+	 * "rhFanSlots_", not the first build's "rhFan_": that build stored Sit's
+	 * newline raw and wrote a broken INTERACT fan (see joinSlots), so its values
+	 * are left behind and the fans start again from the defaults.
+	 */
+	public static final String KEY_FAN_PREFIX = "rhFanSlots_";
+	private static final java.util.Map<String, String[]> sFans = new java.util.HashMap<String, String[]>();
+
+	public static String[] fanSlots(String hubId)
+	{
+		return sFans.get(hubId);
+	}
+
+	public static void saveFanSlots(SharedPreferences prefs, String hubId, String[] slots)
+	{
+		sFans.put(hubId, slots);
+		prefs.edit().putString(KEY_FAN_PREFIX + hubId, joinSlots(slots)).commit();
 	}
 
 	public static boolean enabled()      { return sEnabled; }
@@ -192,9 +232,13 @@ public final class RhPrefs
 
 	/**
 	 * Slots persist as newline-separated keys, with an empty line for an empty
-	 * slot.  Newline is the one delimiter no NetHack key sequence contains -- the
-	 * keys themselves run to things like {@code M-o}, {@code ^D}, {@code Dm} and
-	 * {@code #sit}, so comma, space, pipe and hyphen are all taken.
+	 * slot.  The keys themselves run to things like {@code M-o}, {@code ^D},
+	 * {@code Dm} and {@code #sit}, so comma, space, pipe and hyphen are all taken.
+	 *
+	 * An extended command carries a real newline to submit it ({@code "#sit\n"}),
+	 * so newline is not free after all: inside a key it is stored as a carriage
+	 * return, which no key sends, and turned back on the way in.  Pinning Sit
+	 * split it in two and pushed the next key out of the fan (2026-09-24).
 	 */
 	private static String joinSlots(String[] slots)
 	{
@@ -204,7 +248,7 @@ public final class RhPrefs
 			if(i > 0)
 				sb.append('\n');
 			if(slots[i] != null)
-				sb.append(slots[i]);
+				sb.append(slots[i].replace('\n', '\r'));
 		}
 		return sb.toString();
 	}
@@ -219,7 +263,7 @@ public final class RhPrefs
 		}
 		String[] parts = stored.split("\n", -1);
 		for(int i = 0; i < out.length; i++)
-			out[i] = (i < parts.length && parts[i].length() > 0) ? parts[i] : null;
+			out[i] = (i < parts.length && parts[i].length() > 0) ? parts[i].replace('\r', '\n') : null;
 		return out;
 	}
 

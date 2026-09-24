@@ -593,6 +593,13 @@ public final class RhCommands
 		public final String altKey;
 		/** Sub-line naming the long press, when the face should advertise it. */
 		public final String holdHint;
+		/**
+		 * What the chosen count is stored under.  Usually the key; Long rest sends
+		 * `s` like Search, so it keeps its own count under its own name.
+		 */
+		public final String countKey;
+		/** The counts its chip row offers. */
+		public final int[] counts;
 
 		ContextAction(String id, String word, String key)
 		{
@@ -611,12 +618,20 @@ public final class RhCommands
 
 		ContextAction(String id, String word, String key, int defaultCount, String altKey, String holdHint)
 		{
+			this(id, word, key, defaultCount, altKey, holdHint, key, COUNT_CHOICES);
+		}
+
+		ContextAction(String id, String word, String key, int defaultCount, String altKey, String holdHint,
+		              String countKey, int[] counts)
+		{
 			this.id = id;
 			this.word = word;
 			this.key = key;
 			this.defaultCount = defaultCount;
 			this.altKey = altKey;
 			this.holdHint = holdHint;
+			this.countKey = countKey;
+			this.counts = counts;
 		}
 
 		public boolean hasAlt()
@@ -659,6 +674,16 @@ public final class RhCommands
 	public static final ContextAction CTX_SACRIFICE = new ContextAction("offer", "Sacrifice", "M-o");
 	public static final ContextAction CTX_SEARCH   = new ContextAction("search",  "Search",   "s", 1);
 	public static final ContextAction CTX_REST     = new ContextAction("rest",    "Rest",     ".", 20);
+	/**
+	 * Long rest (Lucas, 2026-09-24): waiting out a hundred turns or more comes up
+	 * often -- prayer timeout, HP, a unicorn to wander past.  It searches rather
+	 * than rests, as his gurrhack panel key did (s100-s400), and it lives
+	 * scrolled out of sight under Rest so it cannot be tapped by accident: see
+	 * RhScrollWell.
+	 */
+	public static final int[] LONG_COUNT_CHOICES = { 100, 200, 300, 400 };
+	public static final ContextAction CTX_LONG_REST = new ContextAction("longrest", "Long rest", "s", 200,
+			null, null, "longrest", LONG_COUNT_CHOICES);
 	public static final ContextAction CTX_LOOKHERE = new ContextAction("lookhere","Look here",":");
 	/** Hold Far look for Look here: the same question asked of your own square. */
 	/**

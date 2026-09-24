@@ -90,6 +90,54 @@
 		<item>cross</item>
 		<item>puck</item>
 	</string-array>
+	<string-array name="rhStyleNames">
+		<item>Terminal</item>
+		<item>Terminal (light)</item>
+		<item>GameCube</item>
+		<item>Colourful</item>
+	</string-array>
+	<string-array name="rhStyleValues">
+		<item>terminal</item>
+		<item>terminal_light</item>
+		<item>gamecube</item>
+		<item>colourful</item>
+	</string-array>
+	<string-array name="rhKeyFontNames">
+		<item>IBM Plex Sans Condensed</item>
+		<item>Barlow Semi Condensed</item>
+		<item>Space Mono</item>
+		<item>System condensed</item>
+	</string-array>
+	<string-array name="rhKeyFontValues">
+		<item>plex</item>
+		<item>barlow</item>
+		<item>spacemono</item>
+		<item>system</item>
+	</string-array>
+	<string-array name="rhScreenFontNames">
+		<item>VT323</item>
+		<item>IBM Plex Mono</item>
+		<item>Share Tech Mono</item>
+		<item>Space Mono</item>
+	</string-array>
+	<string-array name="rhScreenFontValues">
+		<item>vt323</item>
+		<item>plexmono</item>
+		<item>sharetech</item>
+		<item>spacemono</item>
+	</string-array>
+	<string-array name="rhPhosphorNames">
+		<item>Colour</item>
+		<item>Amber</item>
+		<item>Green</item>
+		<item>White</item>
+	</string-array>
+	<string-array name="rhPhosphorValues">
+		<item>color</item>
+		<item>amber</item>
+		<item>green</item>
+		<item>white</item>
+	</string-array>
 	<string-array name="rhPadCellNames">
 		<item>Compact — 46 dp (7.3 mm)</item>
 		<item>Medium — 52 dp (8.3 mm)</item>
