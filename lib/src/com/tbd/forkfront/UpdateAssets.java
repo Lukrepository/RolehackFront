@@ -47,7 +47,6 @@ public class UpdateAssets extends AsyncTask<Void, Void, Void>
 	private Activity mActivity;
 	private final Listener mListener;
 	private final String mNativeDataDir;
-	private final String mNamespace;
 	private final String mDefaultsFile;
 
 	// ____________________________________________________________________________________
@@ -62,7 +61,6 @@ public class UpdateAssets extends AsyncTask<Void, Void, Void>
 		mRequiredSpace = 0;
 		mListener = listener;
 		mNativeDataDir = activity.getResources().getString(R.string.nativeDataDir);
-		mNamespace = activity.getResources().getString(R.string.namespace);
 		mDefaultsFile = activity.getResources().getString(R.string.defaultsFile);
 	}
 
@@ -117,7 +115,7 @@ public class UpdateAssets extends AsyncTask<Void, Void, Void>
 		else
 		{
 			if(mDefaultsFileBackedUp) {
-				String symLinkedPath = "/sdcard/Android/data/" + mNamespace + "/";
+				String symLinkedPath = "/sdcard/Android/data/" + mActivity.getPackageName() + "/";
 				showMessage("Your " + mDefaultsFile + " file was replaced during the update. A backup is saved in:\n" + symLinkedPath);
 			}
 			Log.print("Starting on: " + mDstPath.getAbsolutePath());
@@ -431,7 +429,7 @@ public class UpdateAssets extends AsyncTask<Void, Void, Void>
 			if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 				dataDir = mActivity.getExternalFilesDir(null);
 			} else {
-				dataDir = new File(Environment.getExternalStorageDirectory(), "/Android/data/" + mNamespace);
+				dataDir = new File(Environment.getExternalStorageDirectory(), "/Android/data/" + mActivity.getPackageName());
 			}
 		}
 		return dataDir;

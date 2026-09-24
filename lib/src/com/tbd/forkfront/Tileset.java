@@ -35,13 +35,11 @@ public class Tileset
 	private Context mContext;
 	private boolean mFallbackRenderer;
 	private final Map<Integer, Bitmap> mTileCache = new HashMap<>();
-	private final String mNamespace;
 
 	// ____________________________________________________________________________________
 	public Tileset(Context context)
 	{
 		mContext = context;
-		mNamespace = context.getResources().getString(R.string.namespace);
 	}
 
 	// ____________________________________________________________________________________
@@ -83,7 +81,7 @@ public class Tileset
 			else
 				loadFromResources(tilesetName, r);
 
-			int id = mContext.getResources().getIdentifier("overlays", "drawable", mNamespace);
+			int id = mContext.getResources().getIdentifier("overlays", "drawable", mContext.getPackageName());
 			if(id > 0)
 			{
 				BitmapDrawable bmpDrawable = (BitmapDrawable)r.getDrawable(id);
@@ -155,7 +153,7 @@ public class Tileset
 	// ____________________________________________________________________________________
 	private void loadFromResources(String tilesetName, Resources r)
 	{
-		int id = r.getIdentifier(tilesetName, "drawable", mNamespace);
+		int id = r.getIdentifier(tilesetName, "drawable", mContext.getPackageName());
 
 		clearBitmap();
 		if(id > 0)
