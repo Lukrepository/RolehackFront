@@ -179,6 +179,12 @@ public final class RhCommands
 	 */
 	public static final Item SEARCH_MODE = i("Search mode", "s+");
 
+	/**
+	 * The terminal's case, on or off (RhTheme.caseless).  Intercepted like Search
+	 * mode, and kept out of PINNABLE for the same reason: its key is never sent.
+	 */
+	public static final Item CASE_TOGGLE = i("Case on/off", "#case");
+
 	public static final Group WORLD = new Group("world", "WORLD", new Item[] {
 		i("Pick up", ","), i("Open door", "o"), i("Close door", "c"), i("Search", "s"),
 		SEARCH_MODE,
@@ -199,6 +205,7 @@ public final class RhCommands
 		 * debug mode on its own.
 		 */
 		i("All commands", "#"),
+		CASE_TOGGLE,
 		i("Options", "O"), i("All options", "mO"), i("Save", "S"), i("Help", "?"),
 		i("Annotate", "M-A"), i("Call/name", "C"), i("Name type", "M-n"), i("Autopickup", "@"),
 		i("Repeat", "^A"), i("Redraw", "^R"), i("Version", "V"),
@@ -472,13 +479,18 @@ public final class RhCommands
 	public static final String[] ATK_SLOT_DEFAULT = { null, null, null };
 
 	/**
-	 * OFFENSE's radial: the three commands that take a direction, on the same
-	 * bearings and radius as the pinnable points they can be promoted into.
-	 * Order matters -- it is the wedge order for the flick: Fight up, Kick
-	 * up-and-right, Fire right.
+	 * OFFENSE's radial, on the same bearings and radius as the pinnable points
+	 * they can be promoted into.  Order matters -- it is the wedge order for the
+	 * flick: Fight up, Kick up-and-right.
+	 *
+	 * Two, not three (Lucas, 2026-09-24).  The third wedge, Fire to the right,
+	 * was the hard one to reach, and three flicks plus the pinned keys was more
+	 * to keep in the hand than combat needs: a fight is as often settled by
+	 * engraving, reading, quaffing or rubbing a lamp.  Fire stays in the drawer
+	 * and can be pinned.  With two nodes each wedge widens to about 60 degrees.
 	 */
 	public static final Item[] OFFENSE_RADIAL = {
-		i("Fight", "F", RhTheme.R90), i("Kick", "^D", RhTheme.R90), i("Fire", "f"),
+		i("Fight", "F", RhTheme.R90), i("Kick", "^D", RhTheme.R90),
 	};
 
 	/** The old triangle's satellite geometry; nothing is placed with it since 2026-09-23. */
@@ -747,6 +759,7 @@ public final class RhCommands
 		PINNABLE.put("w", i("Wield", "w"));
 
 		PINNABLE.remove(SEARCH_MODE.key);
+		PINNABLE.remove(CASE_TOGGLE.key);
 	}
 
 	/** The face for a persisted key, or null if nothing answers to it. */

@@ -114,12 +114,19 @@
 
 			<ListPreference
 				android:title="Style"
-				android:summary="Terminal: keycaps in a case, the map framed as a screen, in dark, light or GameCube colours. Colourful: controls float over the map"
+				android:summary="Keycap colours: Terminal, Terminal (light) or GameCube"
 				android:persistent="true"
 				android:key="rhStyle"
 				android:defaultValue="terminal"
 				android:entries="@array/rhStyleNames"
 				android:entryValues="@array/rhStyleValues"/>
+
+			<CheckBoxPreference
+				android:title="Show the case"
+				android:summary="Frame the map as a screen. Off: the map fills the screen under translucent key wells (also GAME &#8594; Case on/off)"
+				android:persistent="true"
+				android:defaultValue="true"
+				android:key="rhCase"/>
 
 			<ListPreference
 				android:title="Screen phosphor"

@@ -402,7 +402,7 @@ public class RhOverlay extends FrameLayout
 				// points, the equip cells, or the opening hub's own fan.
 				RhCommands.Hub from = mDrawerHub;
 				closeDrawer();
-				if(item == RhCommands.SEARCH_MODE)
+				if(item == RhCommands.SEARCH_MODE || item == RhCommands.CASE_TOGGLE)
 					return;
 				pickUp(item, assignTargetFor(from), from);
 			}
@@ -462,7 +462,8 @@ public class RhOverlay extends FrameLayout
 	 */
 	public android.graphics.Rect mapArea()
 	{
-		if(!mTerm || getVisibility() != VISIBLE || getWidth() == 0 || getHeight() == 0)
+		// Caseless, the map has the whole screen again, as the colourful style gave it.
+		if(!mTerm || RhTheme.caseless() || getVisibility() != VISIBLE || getWidth() == 0 || getHeight() == 0)
 			return null;
 		int side   = RhTheme.dpi(mContext, RhCase.glassSide(termBank()) + 2f);
 		int top    = RhTheme.dpi(mContext, RhCase.glassTop() + RhScreen.MSG_BAND);
@@ -559,6 +560,26 @@ public class RhOverlay extends FrameLayout
 				v.setLayoutParams(lp);
 			}
 		}
+	}
+
+	/**
+	 * GAME -> "Case on/off".  Posted, because the drawer row that asked is still
+	 * dispatching its tap when the rebuild would remove it.
+	 */
+	private void toggleCase()
+	{
+		final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+		prefs.edit().putBoolean("rhCase", RhTheme.caseless()).commit();
+		post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				RhTheme.loadPrefs(prefs);
+				updateFitLimit();
+				rebuild();
+			}
+		});
 	}
 
 	/** The mode lamps on the hood's lip; see RhCase. */
@@ -3337,6 +3358,12 @@ public class RhOverlay extends FrameLayout
 		{
 			closeFan();
 			toggleSearchMode();
+			return;
+		}
+		if(item == RhCommands.CASE_TOGGLE)
+		{
+			closeFan();
+			toggleCase();
 			return;
 		}
 		flashKey(item, from);

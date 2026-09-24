@@ -42,10 +42,28 @@ public class RhCase extends View
 	private static final float HOOD_R   = 12f;
 	private static final float WELL_R   = 8f;
 
-	/** The glass's inset from the left and right edges, for a bank this wide. */
-	public static float glassSide(float bankDp) { return MARGIN + bankDp + MARGIN + HOOD_SIDE; }
-	public static float glassTop()              { return MARGIN + HOOD_TOP; }
-	public static float glassBottom()           { return MARGIN + DECK_H + MARGIN + LIP; }
+	/** Caseless: the lamps' strip across the top, above the message band. */
+	public static final float LAMP_STRIP = 22f;
+
+	/**
+	 * The glass's inset from the left and right edges, for a bank this wide.
+	 * Caseless there is no hood, so the "glass" -- where the message and status
+	 * bands go -- runs right up to the wells.
+	 */
+	public static float glassSide(float bankDp)
+	{
+		return MARGIN + bankDp + MARGIN + (RhTheme.caseless() ? 0f : HOOD_SIDE);
+	}
+
+	public static float glassTop()
+	{
+		return MARGIN + (RhTheme.caseless() ? LAMP_STRIP : HOOD_TOP);
+	}
+
+	public static float glassBottom()
+	{
+		return MARGIN + DECK_H + MARGIN + (RhTheme.caseless() ? 0f : LIP);
+	}
 
 	private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 	private final Paint mText  = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
@@ -103,6 +121,11 @@ public class RhCase extends View
 	protected void onDraw(Canvas canvas)
 	{
 		layoutRects();
+		if(RhTheme.caseless())
+		{
+			drawCaseless(canvas);
+			return;
+		}
 		float w = getWidth(), h = getHeight();
 		float gr = dp(GLASS_R);
 
@@ -147,6 +170,46 @@ public class RhCase extends View
 		mPaint.setStyle(Paint.Style.FILL);
 
 		drawLip(canvas);
+	}
+
+	/**
+	 * Caseless: no body and no hood, only the wells, translucent in the skin's
+	 * well colour so the map reads through them, and the lamps on a pill at the
+	 * top centre.
+	 */
+	private void drawCaseless(Canvas canvas)
+	{
+		float wr = dp(WELL_R);
+		int well = (RhTheme.wellBg()[1] & 0x00ffffff) | 0xa6000000;
+		for(RectF r : new RectF[] { mLeft, mRight, mDeck })
+		{
+			mPaint.setShader(null);
+			mPaint.setStyle(Paint.Style.FILL);
+			mPaint.setColor(well);
+			canvas.drawRoundRect(r, wr, wr, mPaint);
+			mPaint.setStyle(Paint.Style.STROKE);
+			mPaint.setStrokeWidth(dp(1f));
+			mPaint.setColor(0x33ffffff);
+			canvas.drawRoundRect(r, wr, wr, mPaint);
+		}
+		mPaint.setStyle(Paint.Style.FILL);
+
+		// Measure the three lamps first, so the pill can be centred on them.
+		mText.setTextSize(dp(8f));
+		mText.setTextAlign(Paint.Align.LEFT);
+		if(android.os.Build.VERSION.SDK_INT >= 21)
+			mText.setLetterSpacing(0.12f);
+		float lamp = dp(3.5f) * 2 + dp(5f) + dp(14f);
+		float total = 3 * lamp + mText.measureText("SEARCH") + mText.measureText("ARMED")
+				+ mText.measureText("MORE") - dp(14f);
+		float cy = dp(MARGIN) + dp(LAMP_STRIP) / 2f - dp(2f);
+		float x = getWidth() / 2f - total / 2f;
+		mRect.set(x - dp(10f), cy - dp(8f), x + total + dp(10f), cy + dp(8f));
+		mPaint.setColor(0xb3070605);
+		canvas.drawRoundRect(mRect, dp(8f), dp(8f), mPaint);
+		x = drawLamp(canvas, x, cy, "SEARCH", mSearch, RhTheme.LAMP_AMBER, RhTheme.LAMP_AMBER_OFF);
+		x = drawLamp(canvas, x, cy, "ARMED",  mArmed,  RhTheme.LAMP_RED,   RhTheme.LAMP_RED_OFF);
+		drawLamp(canvas, x, cy, "MORE", mMore, RhTheme.LAMP_GREEN, RhTheme.LAMP_GREEN_OFF);
 	}
 
 	private void drawWell(Canvas canvas, RectF r)
@@ -226,7 +289,8 @@ public class RhCase extends View
 		mPaint.setColor(on ? lit : unlit);
 		canvas.drawCircle(cx, cy, r, mPaint);
 
-		mText.setColor(RhTheme.lipText());
+		// On the dark pill when caseless, whatever the skin's own lip colour.
+		mText.setColor(RhTheme.caseless() ? 0xffd9d1bd : RhTheme.lipText());
 		Paint.FontMetrics fm = mText.getFontMetrics();
 		float tx = cx + r + dp(5f);
 		canvas.drawText(label, tx, cy - (fm.ascent + fm.descent) / 2f, mText);
@@ -234,11 +298,17 @@ public class RhCase extends View
 	}
 
 	// ____________________________________________________________________________________
-	/** Everything but the glass is case: a touch there stops here. */
+	/**
+	 * Everything but the glass is case: a touch there stops here.  Caseless,
+	 * only the wells are case, and everything else is map.
+	 */
 	@Override
 	public boolean onTouchEvent(MotionEvent e)
 	{
 		layoutRects();
-		return !mGlass.contains(e.getX(), e.getY());
+		float x = e.getX(), y = e.getY();
+		if(RhTheme.caseless())
+			return mLeft.contains(x, y) || mRight.contains(x, y) || mDeck.contains(x, y);
+		return !mGlass.contains(x, y);
 	}
 }

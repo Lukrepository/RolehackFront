@@ -94,13 +94,11 @@
 		<item>Terminal</item>
 		<item>Terminal (light)</item>
 		<item>GameCube</item>
-		<item>Colourful</item>
 	</string-array>
 	<string-array name="rhStyleValues">
 		<item>terminal</item>
 		<item>terminal_light</item>
 		<item>gamecube</item>
-		<item>colourful</item>
 	</string-array>
 	<string-array name="rhKeyFontNames">
 		<item>IBM Plex Sans Condensed</item>

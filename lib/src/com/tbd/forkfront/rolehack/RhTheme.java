@@ -226,6 +226,19 @@ public final class RhTheme
 		return sStyle != STYLE_COLOURFUL;
 	}
 
+	private static boolean sCaseless;
+
+	/**
+	 * The terminal without its case (Lucas, 2026-09-24): the map fills the screen,
+	 * the keys sit on translucent wells that still swallow a near miss, and the
+	 * message and status lines become translucent bands.  For the levels where
+	 * the whole map is worth seeing at once.  GAME -> "Case on/off" flips it.
+	 */
+	public static boolean caseless()
+	{
+		return sCaseless && terminal();
+	}
+
 	/** True when screen text follows the game's own colours rather than one phosphor. */
 	public static boolean phosphorColour()
 	{
@@ -392,11 +405,14 @@ public final class RhTheme
 	public static void loadPrefs(SharedPreferences prefs)
 	{
 		sUiScale = clamp(prefs.getInt("rhUiScale", 100) / 100f, UI_SCALE_MIN, UI_SCALE_MAX);
+		// The colourful style is retired (Lucas, 2026-09-24).  What it had that the
+		// terminal lacked was the map showing beneath the controls, and that is now
+		// the caseless terminal -- so a saved "colourful" opens caseless.
 		String style = prefs.getString("rhStyle", "terminal");
-		sStyle = "colourful".equals(style) ? STYLE_COLOURFUL
-		       : "terminal_light".equals(style) ? STYLE_TERMINAL_LIGHT
+		sStyle = "terminal_light".equals(style) ? STYLE_TERMINAL_LIGHT
 		       : "gamecube".equals(style) ? STYLE_GAMECUBE
 		       : STYLE_TERMINAL;
+		sCaseless = !prefs.getBoolean("rhCase", !"colourful".equals(style));
 		String p = prefs.getString("rhPhosphor", "color");
 		sPhosphor = "amber".equals(p) ? 1 : "green".equals(p) ? 2 : "white".equals(p) ? 3 : 0;
 

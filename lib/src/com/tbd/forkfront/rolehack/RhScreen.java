@@ -102,7 +102,8 @@ public class RhScreen extends View
 		mLayout = null;
 		mClip.reset();
 		mRect.set(0f, 0f, w, h);
-		mClip.addRoundRect(mRect, dp(RhCase.GLASS_R), dp(RhCase.GLASS_R), Path.Direction.CW);
+		float r = dp(RhTheme.caseless() ? 8f : RhCase.GLASS_R);
+		mClip.addRoundRect(mRect, r, r, Path.Direction.CW);
 	}
 
 	@SuppressWarnings("deprecation")
@@ -134,7 +135,9 @@ public class RhScreen extends View
 		StaticLayout l = layout();
 		int lines = l == null ? 0 : Math.min(l.getLineCount(), MAX_MSG_LINES);
 		float msgBottom = Math.max(dp(MSG_BAND), dp(4f) + lines * dp(LINE) + dp(5f));
-		mFill.setColor(RhTheme.GLASS_BG);
+		// Caseless, the bands are smoked glass over the map rather than the tube.
+		boolean caseless = RhTheme.caseless();
+		mFill.setColor(caseless ? 0xc7070a08 : RhTheme.GLASS_BG);
 		canvas.drawRect(0f, 0f, w, msgBottom, mFill);
 		canvas.drawRect(0f, h - dp(STATUS_BAND), w, h, mFill);
 
@@ -159,6 +162,12 @@ public class RhScreen extends View
 		}
 
 		drawStatus(canvas, w, h);
+
+		if(caseless)
+		{
+			canvas.restore();
+			return;
+		}
 
 		// The tube: scanlines over everything, then a vignette and a faint glare.
 		canvas.drawRect(0f, 0f, w, h, mScan);

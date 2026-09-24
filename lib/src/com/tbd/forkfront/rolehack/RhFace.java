@@ -589,7 +589,12 @@ public class RhFace extends View
 		int legend = mLit ? RhTheme.CAP_LIT : cap[RhTheme.CAP_LEGEND];
 		int legendAlpha = mPlaceholder ? 110 : 255;
 
-		String corner = hasRawKey() ? mSub : mTag;
+		// A raw key rides in the corner only while it is a key's worth: an
+		// extended command such as #exploremode ran into its own label, and the
+		// case switch's "#case" is not a key at all.  The label says what it does.
+		String corner = hasRawKey() ? mSub.trim() : mTag;
+		if(hasRawKey() && corner.length() > 4)
+			corner = null;
 		if(corner != null && corner.length() > 0)
 		{
 			mText.setTypeface(RhTheme.capFont(getContext()));
