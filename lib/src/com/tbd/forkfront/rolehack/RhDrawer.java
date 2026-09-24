@@ -234,6 +234,16 @@ public class RhDrawer extends FrameLayout
 		mAssigning = false;
 	}
 
+	/**
+	 * Opened by an empty pin key's long press (Lucas, 2026-09-24): the drawer
+	 * comes up already assigning, and says what the pick is for.
+	 */
+	public void promptAssign(String prompt)
+	{
+		setAssigning(true);
+		mTitle.setCount(prompt);
+	}
+
 	private void setAssigning(boolean on)
 	{
 		mAssigning = on;

@@ -298,6 +298,13 @@ public class RhOverlay extends FrameLayout
 	private RhCommands.Hub mDrawerHub;
 	/** Each fan hub's nodes, as keys (RhPrefs.fanSlots). */
 	private final java.util.Map<String, String[]> mFanKeys = new java.util.HashMap<String, String[]>();
+	/**
+	 * An empty pin key that was held (Lucas, 2026-09-24): its drawer is open and
+	 * assigning, and the pick goes straight to this key.  Null otherwise.
+	 */
+	private HubView mFillHub;
+	private boolean mFillAttack;
+	private int mFillIndex = -1;
 	/** The modal layer under anything open; see syncModal(). */
 	private ModalScrim mScrim;
 
@@ -434,10 +441,21 @@ public class RhOverlay extends FrameLayout
 				// Where it can go depends on who opened the drawer: OFFENSE's
 				// points, the equip cells, or the opening hub's own fan.
 				RhCommands.Hub from = mDrawerHub;
+				HubView fillHub = mFillHub;
+				boolean fillAttack = mFillAttack;
+				int fillIndex = mFillIndex;
 				closeDrawer();
 				if(item == RhCommands.SEARCH_MODE || item == RhCommands.CASE_TOGGLE
 						|| item == RhCommands.STATUS_TOGGLE)
 					return;
+				if(fillHub != null)
+				{
+					// The key that asked already said where it goes.
+					mAssign = item;
+					mAssignTarget = fillAttack ? ASSIGN_ATTACK : ASSIGN_EQUIP;
+					placeAssignment(fillHub, fillAttack, fillIndex);
+					return;
+				}
 				pickUp(item, assignTargetFor(from), from);
 			}
 
@@ -2144,9 +2162,12 @@ public class RhOverlay extends FrameLayout
 					@Override
 					public void run()
 					{
-						if(mAssign != null || slotItem(false, index) == null)
+						if(mAssign != null)
 							return;
-						clearSlot(hv, false, index);
+						if(slotItem(false, index) == null)
+							fillSlot(hv, false, index);
+						else
+							clearSlot(hv, false, index);
 					}
 				},
 				new Runnable()
@@ -2161,10 +2182,7 @@ public class RhOverlay extends FrameLayout
 						}
 						RhCommands.Item item = slotItem(false, index);
 						if(item == null)
-						{
-							openDrawer(hv.hub.group.id, hv.hub);
-							return;
-						}
+							return;   // empty: a tap does nothing; the hold fills it
 						execute(item, slot);
 					}
 				});
@@ -2204,11 +2222,14 @@ public class RhOverlay extends FrameLayout
 					@Override
 					public void run()
 					{
-						// Hold clears, but never while an assignment is in hand --
-						// that gesture is placing, not clearing.
-						if(mAssign != null || slotItem(attack, index) == null)
+						// Hold clears a filled key and fills an empty one, but never
+						// while an assignment is in hand -- that gesture is placing.
+						if(mAssign != null)
 							return;
-						clearSlot(hv, attack, index);
+						if(slotItem(attack, index) == null)
+							fillSlot(hv, attack, index);
+						else
+							clearSlot(hv, attack, index);
 					}
 				},
 				new Runnable()
@@ -2223,11 +2244,7 @@ public class RhOverlay extends FrameLayout
 						}
 						RhCommands.Item item = slotItem(attack, index);
 						if(item == null)
-						{
-							// An empty slot is the discoverable way into its source.
-							openRadial(hv.hub);
-							return;
-						}
+							return;   // empty: a tap does nothing; the hold fills it
 						if(attack)
 							fireFromHub(RhCommands.HUB_ATTACK, item, slot);
 						else
@@ -2301,7 +2318,7 @@ public class RhOverlay extends FrameLayout
 				slot.placeholder(true)
 				    .textColor(RhTheme.TEXT)
 				    .label("+", 15f, 0f)
-				    .sub(null, 7f, RhTheme.RAW_KEY, 1f);
+				    .sub("hold to fill", 7f, RhTheme.TEXT, 0.75f);
 			}
 			else
 			{
@@ -2315,6 +2332,22 @@ public class RhOverlay extends FrameLayout
 	}
 
 	/** Hold a fan or radial node to pick its command up. */
+	/**
+	 * An empty pin key, held: its drawer opens assigning, and whatever is picked
+	 * goes into this key (Lucas, 2026-09-24).  A tap on an empty key does
+	 * nothing, so emptying a key is also how to switch it off.
+	 */
+	private void fillSlot(HubView hv, boolean attack, int index)
+	{
+		closeChips();
+		closeRadial();
+		openDrawer(hv.hub.group.id, hv.hub);
+		mFillHub = hv;
+		mFillAttack = attack;
+		mFillIndex = index;
+		mDrawer.promptAssign("pick a command for this key");
+	}
+
 	private void pickUp(RhCommands.Item item, int target)
 	{
 		pickUp(item, target, null);
@@ -3673,6 +3706,8 @@ public class RhOverlay extends FrameLayout
 			return;
 		mDrawerOpen = null;
 		mDrawerHub = null;
+		mFillHub = null;
+		mFillIndex = -1;
 		mDrawer.hide();
 		updateDrawerButtonFaces();
 	}
