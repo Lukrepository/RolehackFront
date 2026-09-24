@@ -129,6 +129,15 @@
 				android:key="rhCase"/>
 
 			<ListPreference
+				android:title="Status lines"
+				android:summary="Full, compact (no attribute line) or hidden (conditions stay). The map shows through them and answers a tap (also GAME &#8594; Status lines)"
+				android:persistent="true"
+				android:key="rhStatusLines"
+				android:defaultValue="full"
+				android:entries="@array/rhStatusLinesNames"
+				android:entryValues="@array/rhStatusLinesValues"/>
+
+			<ListPreference
 				android:title="Screen phosphor"
 				android:summary="Terminal style: the colour of the message and status lines"
 				android:persistent="true"

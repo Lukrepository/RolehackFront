@@ -185,6 +185,13 @@ public final class RhCommands
 	 */
 	public static final Item CASE_TOGGLE = i("Case on/off", "#case");
 
+	/**
+	 * The terminal's status lines: full, compact (no attributes) or hidden, in
+	 * turn (RhPrefs.StatusLines).  Intercepted like the case switch, and kept out
+	 * of PINNABLE with it.
+	 */
+	public static final Item STATUS_TOGGLE = i("Status lines", "#status");
+
 	public static final Group WORLD = new Group("world", "WORLD", new Item[] {
 		i("Pick up", ","), i("Open door", "o"), i("Close door", "c"), i("Search", "s"),
 		SEARCH_MODE,
@@ -205,7 +212,7 @@ public final class RhCommands
 		 * debug mode on its own.
 		 */
 		i("All commands", "#"),
-		CASE_TOGGLE,
+		CASE_TOGGLE, STATUS_TOGGLE,
 		i("Options", "O"), i("All options", "mO"), i("Save", "S"), i("Help", "?"),
 		i("Annotate", "M-A"), i("Call/name", "C"), i("Name type", "M-n"), i("Autopickup", "@"),
 		i("Repeat", "^A"), i("Redraw", "^R"), i("Version", "V"),
@@ -690,7 +697,7 @@ public final class RhCommands
 	 * Long rest (Lucas, 2026-09-24): waiting out a hundred turns or more comes up
 	 * often -- prayer timeout, HP, a unicorn to wander past.  It searches rather
 	 * than rests, as his gurrhack panel key did (s100-s400), and it lives
-	 * scrolled out of sight under Rest so it cannot be tapped by accident: see
+	 * scrolled out of sight beside Rest so it cannot be tapped by accident: see
 	 * RhScrollWell.
 	 */
 	public static final int[] LONG_COUNT_CHOICES = { 100, 200, 300, 400 };
@@ -760,6 +767,7 @@ public final class RhCommands
 
 		PINNABLE.remove(SEARCH_MODE.key);
 		PINNABLE.remove(CASE_TOGGLE.key);
+		PINNABLE.remove(STATUS_TOGGLE.key);
 	}
 
 	/** The face for a persisted key, or null if nothing answers to it. */

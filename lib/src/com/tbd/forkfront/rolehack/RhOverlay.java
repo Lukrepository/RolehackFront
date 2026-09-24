@@ -153,8 +153,8 @@ public class RhOverlay extends FrameLayout
 	private static final float CHIP_SIZE      = 44f;
 	private static final float CHIP_GAP       = 4f;
 	private static final float CHIP_GAP_ABOVE = 7f;
-	/** Four 44dp chips with three 4dp gaps. */
-	private static final float CHIP_ROW_W     = 4 * CHIP_SIZE + 3 * CHIP_GAP;
+	/** Five 44dp chips with four 4dp gaps: the presets, then "n". */
+	private static final float CHIP_ROW_W     = 5 * CHIP_SIZE + 4 * CHIP_GAP;
 
 	/** Satellite and pinned-point faces. */
 	private static final float SAT_SIZE = 44f;
@@ -203,7 +203,7 @@ public class RhOverlay extends FrameLayout
 	private RhMessagePanel mMessagePanel;
 	private RhFace mRestFace;
 	private ViewGroup mRestChips;
-	/** Terminal style: Long rest, scrolled out of sight under Rest (RhScrollWell). */
+	/** Terminal style: Long rest, scrolled out of sight beside Rest (RhScrollWell). */
 	private RhFace mLongFace;
 	private ViewGroup mLongChips;
 	private RhScrollWell mRestWell;
@@ -402,7 +402,8 @@ public class RhOverlay extends FrameLayout
 				// points, the equip cells, or the opening hub's own fan.
 				RhCommands.Hub from = mDrawerHub;
 				closeDrawer();
-				if(item == RhCommands.SEARCH_MODE || item == RhCommands.CASE_TOGGLE)
+				if(item == RhCommands.SEARCH_MODE || item == RhCommands.CASE_TOGGLE
+						|| item == RhCommands.STATUS_TOGGLE)
 					return;
 				pickUp(item, assignTargetFor(from), from);
 			}
@@ -467,7 +468,7 @@ public class RhOverlay extends FrameLayout
 			return null;
 		int side   = RhTheme.dpi(mContext, RhCase.glassSide(termBank()) + 2f);
 		int top    = RhTheme.dpi(mContext, RhCase.glassTop() + RhScreen.MSG_BAND);
-		int bottom = RhTheme.dpi(mContext, RhCase.glassBottom() + RhScreen.STATUS_BAND);
+		int bottom = RhTheme.dpi(mContext, RhCase.glassBottom() + RhScreen.statusBand());
 		if(getWidth() - 2 * side <= 0 || getHeight() - top - bottom <= 0)
 			return null;
 		return new android.graphics.Rect(side, top, getWidth() - side, getHeight() - bottom);
@@ -580,6 +581,19 @@ public class RhOverlay extends FrameLayout
 				rebuild();
 			}
 		});
+	}
+
+	/**
+	 * GAME -> "Status lines": full, compact, hidden, and round again.  The map
+	 * re-centres in whatever glass the status leaves it.
+	 */
+	private void cycleStatusLines()
+	{
+		RhPrefs.saveStatusLines(PreferenceManager.getDefaultSharedPreferences(mContext),
+				RhPrefs.statusLines().next());
+		if(mScreen != null)
+			mScreen.invalidate();
+		mHost.mapAreaChanged();
 	}
 
 	/** The mode lamps on the hood's lip; see RhCase. */
@@ -759,11 +773,11 @@ public class RhOverlay extends FrameLayout
 						mRestWell.scrollTo(false);
 					}
 				});
-			// Long rest waits one line below Rest's edge, out of sight until the
-			// slot is dragged up -- gurrhack's scrolling panels, which is how Lucas
-			// kept his s300 key (see RhScrollWell).
+			// Long rest waits past Rest's right edge, out of sight until the slot
+			// is swiped toward the screen's edge -- gurrhack's scrolling panels,
+			// which is how Lucas kept his s300 key (see RhScrollWell).
 			mRestWell = new RhScrollWell(mContext, mRestFace, mLongFace,
-					RhTheme.dpi(mContext, T_ROW1_H), RhTheme.dpi(mContext, T_GAP));
+					RhTheme.dpi(mContext, termWideKey()), RhTheme.dpi(mContext, T_GAP));
 			addView(mRestWell, boxTL(termWideKey(), T_ROW1_H, in, in));
 			addView(prev, boxTL(T_KEY, T_ROW1_H, in + mPadBox - T_KEY, in));
 			// Macro 1 under Msgs; 2 and 3 are in the right bank (buildRightMacros).
@@ -1010,7 +1024,96 @@ public class RhOverlay extends FrameLayout
 				}
 			});
 		}
+		addCustomChip(row, new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				promptCount(act);
+			}
+		});
 		return row;
+	}
+
+	/** The largest count NetHack takes: LARGEST_INT, include/global.h. */
+	private static final int MAX_COUNT = 32767;
+
+	/**
+	 * The last chip on every count row, "n": any count at all (Lucas, 2026-09-24),
+	 * after NetHack's own n prefix.  Shutting yourself in a closet to rest a
+	 * thousand turns is a plan the presets should not rule out.
+	 */
+	private void addCustomChip(LinearLayout row, Runnable onTap)
+	{
+		RhFace chip = new RhFace(mContext)
+				.face(RhTheme.A90)
+				.radius(4f)
+				.textColor(RhTheme.BADGE_TEXT)
+				.label("×n", 11f, 0f);
+		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+				RhTheme.dpi(mContext, CHIP_SIZE), RhTheme.dpi(mContext, CHIP_SIZE));
+		lp.leftMargin = RhTheme.dpi(mContext, CHIP_GAP);
+		row.addView(chip, lp);
+		bindTap(chip, onTap);
+	}
+
+	/** Asks for the count on the system's number pad.  It sticks, like a preset. */
+	private void promptCount(final RhCommands.ContextAction act)
+	{
+		final android.widget.EditText field = new android.widget.EditText(mContext);
+		field.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+		field.setSingleLine();
+		field.setHint("1 to " + MAX_COUNT);
+		field.setText(Integer.toString(countFor(act)));
+		field.setSelectAllOnFocus(true);
+
+		LinearLayout body = new LinearLayout(mContext);
+		int pad = RhTheme.rawDpi(mContext, 16f);
+		body.setPadding(pad, pad / 2, pad, 0);
+		body.addView(field, new LinearLayout.LayoutParams(
+				LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+		android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(mContext)
+				.setTitle(act.word + ": how many turns?")
+				.setView(body)
+				.setPositiveButton("Set", new android.content.DialogInterface.OnClickListener()
+				{
+					@Override
+					public void onClick(android.content.DialogInterface d, int which)
+					{
+						long n;
+						try
+						{
+							n = Long.parseLong(field.getText().toString().trim());
+						}
+						catch(NumberFormatException e)
+						{
+							return;
+						}
+						if(n < 1)
+							return;
+						RhPrefs.saveCount(PreferenceManager.getDefaultSharedPreferences(mContext),
+								act.countKey, (int)Math.min(n, MAX_COUNT));
+						closeChips();
+					}
+				})
+				.setNegativeButton("Cancel", null)
+				.create();
+		dlg.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+		dlg.show();
+	}
+
+	/** Full strength on the chip that matches; on "n" when no preset does. */
+	private static void highlightCounts(ViewGroup chips, int[] counts, int n)
+	{
+		boolean preset = false;
+		for(int c = 0; c < counts.length; c++)
+			preset |= counts[c] == n;
+		for(int c = 0; c < chips.getChildCount(); c++)
+		{
+			boolean on = c < counts.length ? counts[c] == n : !preset;
+			chips.getChildAt(c).setAlpha(on ? 1f : 0.66f);
+		}
 	}
 
 	private void openRestChips(RhCommands.ContextAction act)
@@ -1048,8 +1151,7 @@ public class RhOverlay extends FrameLayout
 
 		chips.setVisibility(open ? VISIBLE : GONE);
 		if(open)
-			for(int c = 0; c < chips.getChildCount() && c < act.counts.length; c++)
-				chips.getChildAt(c).setAlpha(act.counts[c] == n ? 1f : 0.66f);
+			highlightCounts(chips, act.counts, n);
 	}
 
 	/** Verbatim NetHack message output, pushed whenever the core prints. */
@@ -3079,7 +3181,7 @@ public class RhOverlay extends FrameLayout
 		row.setOrientation(LinearLayout.HORIZONTAL);
 		row.setVisibility(GONE);
 
-		// Anchored to its button, not centred: centred, the row's 188dp reaches
+		// Anchored to its button, not centred: centred, the row's 236dp reaches
 		// back over the numpad's right column and takes taps from a live movement key.
 		addView(row, where);
 		mChipRows.add(row);
@@ -3113,6 +3215,16 @@ public class RhOverlay extends FrameLayout
 				}
 			});
 		}
+		addCustomChip(row, new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				RhCommands.ContextAction act = contextAction(index);
+				if(act != null)
+					promptCount(act);
+			}
+		});
 	}
 
 	private void openChips(int index)
@@ -3146,9 +3258,7 @@ public class RhOverlay extends FrameLayout
 			if(!open)
 				continue;
 
-			int selected = countFor(act);
-			for(int c = 0; c < row.getChildCount() && c < RhCommands.COUNT_CHOICES.length; c++)
-				row.getChildAt(c).setAlpha(RhCommands.COUNT_CHOICES[c] == selected ? 1f : 0.66f);
+			highlightCounts(row, RhCommands.COUNT_CHOICES, countFor(act));
 		}
 	}
 
@@ -3364,6 +3474,12 @@ public class RhOverlay extends FrameLayout
 		{
 			closeFan();
 			toggleCase();
+			return;
+		}
+		if(item == RhCommands.STATUS_TOGGLE)
+		{
+			closeFan();
+			cycleStatusLines();
 			return;
 		}
 		flashKey(item, from);

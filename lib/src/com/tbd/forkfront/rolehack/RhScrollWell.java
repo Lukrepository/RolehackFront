@@ -10,18 +10,21 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
 /**
- * One key's slot that scrolls, with a second key waiting below its edge.
+ * One key's slot that scrolls sideways, with a second key waiting past its
+ * right edge.
  *
  * gurrhack's command panels scrolled past their borders, and Lucas kept an
- * `s300` button one line below the edge, out of sight until he scrolled for it
- * (2026-09-24).  A key that commits hundreds of turns is safest when it is not
- * on screen to be tapped by accident, and cheapest when reaching it is one
- * drag rather than a menu.  This is that: the visible key works as it always
- * did, a drag upward brings the hidden one up in its place, and after a few
- * seconds, or once it fires, it scrolls away again.
+ * `s300` button just out of sight until he scrolled for it (2026-09-24).  A key
+ * that commits hundreds of turns is safest when it is not on screen to be
+ * tapped by accident, and cheapest when reaching it is one drag rather than a
+ * menu.  This is that: the visible key works as it always did, a swipe from
+ * its right-hand side toward the screen's edge brings the hidden one in from
+ * the right, and after a few seconds, or once it fires, it scrolls away again.
+ * The first build swiped upward; Lucas wanted it sideways, the way the panels
+ * ran.
  *
- * A drag is claimed only once the finger has moved past the touch slop, so a
- * tap or a hold still reaches the key underneath untouched.
+ * A drag is claimed only once the finger has moved sideways past the touch
+ * slop, so a tap or a hold still reaches the key underneath untouched.
  */
 public class RhScrollWell extends FrameLayout
 {
@@ -32,7 +35,7 @@ public class RhScrollWell extends FrameLayout
 	private final float mGap;
 	private final Handler mHandler = new Handler();
 	private final Paint mDot = new Paint(Paint.ANTI_ALIAS_FLAG);
-	private float mDownY, mStartTrans;
+	private float mDownX, mDownY, mStartTrans;
 	private boolean mDragging;
 	private boolean mPinned;
 	private final Runnable mHide = new Runnable()
@@ -45,7 +48,7 @@ public class RhScrollWell extends FrameLayout
 		}
 	};
 
-	public RhScrollWell(Context context, View top, View below, int keyH, int gap)
+	public RhScrollWell(Context context, View shown, View hidden, int keyW, int gap)
 	{
 		super(context);
 		mGap = gap;
@@ -54,16 +57,16 @@ public class RhScrollWell extends FrameLayout
 		setWillNotDraw(false);
 
 		mStrip = new LinearLayout(context);
-		mStrip.setOrientation(LinearLayout.VERTICAL);
+		mStrip.setOrientation(LinearLayout.HORIZONTAL);
 		mStrip.setClipChildren(false);
-		mStrip.addView(top, new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, keyH));
-		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, keyH);
-		lp.topMargin = gap;
-		mStrip.addView(below, lp);
-		addView(mStrip, new LayoutParams(LayoutParams.MATCH_PARENT, keyH * 2 + gap));
+		mStrip.addView(shown, new LinearLayout.LayoutParams(keyW, LayoutParams.MATCH_PARENT));
+		LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(keyW, LayoutParams.MATCH_PARENT);
+		lp.leftMargin = gap;
+		mStrip.addView(hidden, lp);
+		addView(mStrip, new LayoutParams(keyW * 2 + gap, LayoutParams.MATCH_PARENT));
 	}
 
-	/** Holds the hidden key up while its own chip row is open. */
+	/** Holds the hidden key in view while its own chip row is open. */
 	public void setPinned(boolean pinned)
 	{
 		mPinned = pinned;
@@ -73,19 +76,19 @@ public class RhScrollWell extends FrameLayout
 
 	public boolean isRevealed()
 	{
-		return mStrip.getTranslationY() < -travel() / 2f;
+		return mStrip.getTranslationX() < -travel() / 2f;
 	}
 
 	private float travel()
 	{
-		return getHeight() + mGap;
+		return getWidth() + mGap;
 	}
 
 	/** Scrolls the hidden key into view, or back out of it. */
 	public void scrollTo(boolean revealed)
 	{
 		mHandler.removeCallbacks(mHide);
-		mStrip.animate().translationY(revealed ? -travel() : 0f).setDuration(140).start();
+		mStrip.animate().translationX(revealed ? -travel() : 0f).setDuration(140).start();
 		if(revealed)
 			hideLater();
 		invalidate();
@@ -103,12 +106,15 @@ public class RhScrollWell extends FrameLayout
 		switch(e.getActionMasked())
 		{
 			case MotionEvent.ACTION_DOWN:
+				mDownX = e.getX();
 				mDownY = e.getY();
-				mStartTrans = mStrip.getTranslationY();
+				mStartTrans = mStrip.getTranslationX();
 				mDragging = false;
 				return false;
 			case MotionEvent.ACTION_MOVE:
-				if(!mDragging && Math.abs(e.getY() - mDownY) > mSlop)
+			{
+				float dx = Math.abs(e.getX() - mDownX);
+				if(!mDragging && dx > mSlop && dx > Math.abs(e.getY() - mDownY))
 				{
 					// The key under the finger gets a cancel: no tap, no hold.
 					mDragging = true;
@@ -116,6 +122,7 @@ public class RhScrollWell extends FrameLayout
 					return true;
 				}
 				return false;
+			}
 		}
 		return false;
 	}
@@ -129,8 +136,8 @@ public class RhScrollWell extends FrameLayout
 				return true;
 			case MotionEvent.ACTION_MOVE:
 			{
-				float t = mStartTrans + (e.getY() - mDownY);
-				mStrip.setTranslationY(Math.max(-travel(), Math.min(0f, t)));
+				float t = mStartTrans + (e.getX() - mDownX);
+				mStrip.setTranslationX(Math.max(-travel(), Math.min(0f, t)));
 				invalidate();
 				return true;
 			}
@@ -143,26 +150,27 @@ public class RhScrollWell extends FrameLayout
 		return true;
 	}
 
-	/** Two dots at the right edge say there is more in the slot, and which is showing. */
+	/** Two dots side by side at the right edge say there is more in the slot, and which is showing. */
 	@Override
 	protected void dispatchDraw(Canvas canvas)
 	{
 		// The overlay does not clip its children, and clipChildren here only clips
 		// the strip to the strip -- so the slot clips itself, or the hidden key
-		// shows below it.
+		// shows beside it.
 		canvas.save();
 		canvas.clipRect(0, 0, getWidth(), getHeight());
 		super.dispatchDraw(canvas);
 		canvas.restore();
 		float r = RhTheme.dp(getContext(), 1.8f);
-		float x = getWidth() - RhTheme.dp(getContext(), 6f);
-		float mid = getHeight() / 2f - RhTheme.dp(getContext(), 3f);
-		float frac = travel() > 0 ? -mStrip.getTranslationY() / travel() : 0f;
+		float step = RhTheme.dp(getContext(), 6f);
+		float x = getWidth() - RhTheme.dp(getContext(), 6f) - step;
+		float y = getHeight() / 2f;
+		float frac = travel() > 0 ? -mStrip.getTranslationX() / travel() : 0f;
 		for(int i = 0; i < 2; i++)
 		{
 			boolean on = (i == 0) ? frac < 0.5f : frac >= 0.5f;
 			mDot.setColor(on ? 0xe6ffffff : 0x59ffffff);
-			canvas.drawCircle(x, mid + i * RhTheme.dp(getContext(), 6f), r, mDot);
+			canvas.drawCircle(x + i * step, y, r, mDot);
 		}
 	}
 }

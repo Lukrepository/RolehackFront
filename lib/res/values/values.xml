@@ -146,4 +146,14 @@
 		<item>52</item>
 		<item>58</item>
 	</string-array>
+	<string-array name="rhStatusLinesNames">
+		<item>Full: three lines</item>
+		<item>Compact: no attribute line</item>
+		<item>Hidden: conditions only</item>
+	</string-array>
+	<string-array name="rhStatusLinesValues">
+		<item>full</item>
+		<item>compact</item>
+		<item>hidden</item>
+	</string-array>
 </resources>

@@ -16,6 +16,22 @@ public final class RhPrefs
 	public enum LabelMode { WORDS, BOTH, KEYS }
 	public enum PadVariant { NUMPAD, RING, PUCK }
 
+	/**
+	 * How much of the status the terminal's glass shows (Lucas, 2026-09-24): all
+	 * three lines, the first two without the attributes, or only the conditions,
+	 * for more map.
+	 * GAME -> "Status lines" steps through them in this order.
+	 */
+	public enum StatusLines
+	{
+		FULL, COMPACT, HIDDEN;
+
+		public StatusLines next()
+		{
+			return values()[(ordinal() + 1) % values().length];
+		}
+	}
+
 	public static final String KEY_ENABLED     = "rhEnabled";
 	public static final String KEY_LABEL_MODE  = "rhLabelMode";
 	public static final String KEY_KEY_FLASH   = "rhKeyFlash";
@@ -30,11 +46,13 @@ public final class RhPrefs
 	public static final String KEY_SEARCH_MODE   = "rhSearchMode";
 	public static final String KEY_SEARCH_BEFORE = "rhSearchBefore";
 	public static final String KEY_SEARCH_COUNT  = "rhSearchCount";
+	public static final String KEY_STATUS_LINES  = "rhStatusLines";
 
 	private static boolean sEnabled = true;
 	private static LabelMode sLabelMode = LabelMode.WORDS;
 	private static boolean sKeyFlash = true;
 	private static PadVariant sPad = PadVariant.NUMPAD;
+	private static StatusLines sStatusLines = StatusLines.FULL;
 	/**
 	 * Movement key size in design dp.  A preference rather than a constant because
 	 * it is under trial: 46 was the handoff's number, 58 is Parhi, Karlson &
@@ -79,6 +97,7 @@ public final class RhPrefs
 		sKeyFlash  = prefs.getBoolean(KEY_KEY_FLASH, true);
 		sLabelMode = parseLabelMode(prefs.getString(KEY_LABEL_MODE, "words"));
 		sPad       = parsePad(prefs.getString(KEY_PAD, "numpad"));
+		sStatusLines = parseStatusLines(prefs.getString(KEY_STATUS_LINES, "full"));
 		sPadCell   = parseInt(prefs.getString(KEY_PAD_CELL, null),
 		                      PAD_CELL_DEFAULT, PAD_CELL_MIN, PAD_CELL_MAX);
 		sAtkSlots   = parseSlots(prefs.getString(KEY_ATK_SLOTS, null),
@@ -128,6 +147,7 @@ public final class RhPrefs
 	public static LabelMode labelMode()  { return sLabelMode; }
 	public static boolean keyFlash()     { return sKeyFlash; }
 	public static PadVariant pad()       { return sPad; }
+	public static StatusLines statusLines() { return sStatusLines; }
 	public static int padCell()          { return sPadCell; }
 
 	public static String[] atkSlots()    { return sAtkSlots; }
@@ -155,6 +175,12 @@ public final class RhPrefs
 		sSearchCount = Math.max(1, Math.min(9, count));
 		prefs.edit().putBoolean(KEY_SEARCH_MODE, on).putBoolean(KEY_SEARCH_BEFORE, before)
 		     .putInt(KEY_SEARCH_COUNT, sSearchCount).commit();
+	}
+
+	public static void saveStatusLines(SharedPreferences prefs, StatusLines lines)
+	{
+		sStatusLines = lines;
+		prefs.edit().putString(KEY_STATUS_LINES, lines.name().toLowerCase(java.util.Locale.ROOT)).commit();
 	}
 
 	public static void saveMacro(SharedPreferences prefs, int slot, String name, String keys)
@@ -289,6 +315,15 @@ public final class RhPrefs
 		if("both".equals(v))
 			return LabelMode.BOTH;
 		return LabelMode.WORDS;
+	}
+
+	private static StatusLines parseStatusLines(String v)
+	{
+		if("compact".equals(v))
+			return StatusLines.COMPACT;
+		if("hidden".equals(v))
+			return StatusLines.HIDDEN;
+		return StatusLines.FULL;
 	}
 
 	private static PadVariant parsePad(String v)

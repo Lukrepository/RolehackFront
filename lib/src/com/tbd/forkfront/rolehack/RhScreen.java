@@ -28,12 +28,19 @@ import java.util.List;
  * 80-column screen.  The third line keeps a fixed place for conditions, so a
  * new one never moves anything (the same rule as the context strip).  The
  * title carries an inverse-video HP bar, after tty's `hitpointbar` option.
+ *
+ * The status can be cut to two lines, leaving off the attributes, or hidden
+ * for more map, all but its conditions (RhPrefs.statusLines; Lucas, 2026-09-24).  Its band is smoked
+ * glass the map shows through, and a tap on it reaches the map.
  */
 public class RhScreen extends View
 {
 	/** Heights of the message and status bands, design dp; the map lives between. */
 	public static final float MSG_BAND    = 36f;
 	public static final float STATUS_BAND = 48f;
+
+	/** The status band's glass: dark enough to read on, light enough to see the map through. */
+	private static final int STATUS_SMOKE = 0x99090d0a;
 
 	private static final float PAD_H     = 10f;
 	private static final float MSG_SIZE  = 11f;
@@ -77,6 +84,17 @@ public class RhScreen extends View
 	}
 
 	private float dp(float v) { return RhTheme.dp(getContext(), v); }
+
+	/** The status band's height for the lines shown (RhPrefs.statusLines), design dp. */
+	public static float statusBand()
+	{
+		switch(RhPrefs.statusLines())
+		{
+			case HIDDEN:  return 0f;
+			case COMPACT: return STATUS_BAND - LINE;
+			default:      return STATUS_BAND;
+		}
+	}
 
 	public void setStatus(RhStatus status)
 	{
@@ -129,17 +147,24 @@ public class RhScreen extends View
 		canvas.save();
 		canvas.clipPath(mClip);
 
-		// The two bands are solid glass: the map is centred between them and must
-		// not show through the text.  A long message spills over the map's top edge
+		// The message band is solid glass: the map is centred below it and must not
+		// show through the text.  A long message spills over the map's top edge
 		// rather than moving it -- the map area never changes size with the text.
 		StaticLayout l = layout();
 		int lines = l == null ? 0 : Math.min(l.getLineCount(), MAX_MSG_LINES);
 		float msgBottom = Math.max(dp(MSG_BAND), dp(4f) + lines * dp(LINE) + dp(5f));
-		// Caseless, the bands are smoked glass over the map rather than the tube.
+		// Caseless, it is smoked glass over the map rather than the tube.
 		boolean caseless = RhTheme.caseless();
 		mFill.setColor(caseless ? 0xc7070a08 : RhTheme.GLASS_BG);
 		canvas.drawRect(0f, 0f, w, msgBottom, mFill);
-		canvas.drawRect(0f, h - dp(STATUS_BAND), w, h, mFill);
+		// The status band is lighter smoke in both, so the map shows through it
+		// (Lucas, 2026-09-24: the rows south of the hero were hidden under it).
+		float band = dp(statusBand());
+		if(band > 0f)
+		{
+			mFill.setColor(STATUS_SMOKE);
+			canvas.drawRect(0f, h - band, w, h, mFill);
+		}
 
 		if(l != null)
 		{
@@ -186,13 +211,29 @@ public class RhScreen extends View
 	// ____________________________________________________________________________________
 	private void drawStatus(Canvas canvas, float w, float h)
 	{
+		RhPrefs.StatusLines mode = RhPrefs.statusLines();
 		if(mStatus == null || !mStatus.isPopulated())
 			return;
+		boolean compact = mode == RhPrefs.StatusLines.COMPACT;
 
 		int text = RhTheme.phosphorText();
 		boolean colour = RhTheme.phosphorColour();
 		float x0 = dp(PAD_H);
-		float top = h - dp(STATUS_BAND) + dp(3.5f);
+
+		if(mode == RhPrefs.StatusLines.HIDDEN)
+		{
+			// Hidden keeps the conditions (Lucas, 2026-09-24): Stoned or Slimed must
+			// never be one scrolled-away message.  Inverse video carries its own
+			// ground, so they sit on the map where line 3 would put them.
+			mStat.setTextSize(statSize());
+			mStat.clearShadowLayer();
+			Paint.FontMetrics fm = mStat.getFontMetrics();
+			float lineH = dp(LINE);
+			float baseline = h - dp(4f) - lineH + (lineH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
+			drawBadges(canvas, x0, w - dp(PAD_H), baseline, fm, colour, text);
+			return;
+		}
+		float top = h - dp(statusBand()) + dp(3.5f);
 
 		String title = trimmed(mStatus.value(RhStatus.BL_TITLE));
 		if(title.length() == 0)
@@ -202,19 +243,22 @@ public class RhScreen extends View
 		String tail2 = line2Tail();
 		String stats = statsText();
 
-		// The three lines shrink together until the widest fits: the glass narrows on
-		// a small screen, and the fonts on offer differ in width.
+		// The lines shrink together until the widest fits: the glass narrows on a
+		// small screen, and the fonts on offer differ in width.  Room is kept for a
+		// condition on whichever line carries them.
 		mStat.setTextSize(statSize());
 		float avail = w - 2 * dp(PAD_H);
-		float widest = Math.max(mStat.measureText(title + "  " + tail1),
-		               Math.max(mStat.measureText(hpText + " " + tail2), mStat.measureText(stats + "  Hungry")));
+		float widest = Math.max(mStat.measureText(title + "  " + tail1 + (compact ? "  Hungry" : "")),
+				mStat.measureText(hpText + " " + tail2));
+		if(!compact)
+			widest = Math.max(widest, mStat.measureText(stats + "  Hungry"));
 		if(widest > avail)
 			mStat.setTextSize(statSize() * Math.max(0.6f, avail / widest));
 
 		Paint.FontMetrics fm = mStat.getFontMetrics();
 		float lineH = dp(LINE);
-		float[] base = new float[3];
-		for(int i = 0; i < 3; i++)
+		float[] base = new float[compact ? 2 : 3];
+		for(int i = 0; i < base.length; i++)
 			base[i] = top + i * lineH + (lineH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
 		mStat.setTextAlign(Paint.Align.LEFT);
 		mStat.setShadowLayer(dp(2.5f), 0f, 0f, (text & 0x00ffffff) | 0x70000000);
@@ -242,7 +286,8 @@ public class RhScreen extends View
 			mStat.setShadowLayer(dp(2.5f), 0f, 0f, (text & 0x00ffffff) | 0x70000000);
 		}
 		mStat.setColor(text);
-		canvas.drawText(tail1, x0 + tw + mStat.measureText("  "), base[0], mStat);
+		float tail1X = x0 + tw + mStat.measureText("  ");
+		canvas.drawText(tail1, tail1X, base[0], mStat);
 
 		// Line 2: HP in its own colour, then power, armour, experience, alignment.
 		float x = x0;
@@ -253,14 +298,28 @@ public class RhScreen extends View
 		canvas.drawText(tail2, x, base[1], mStat);
 
 		// Line 3: attributes, and the conditions right-aligned in inverse video.
-		canvas.drawText(stats, x0, base[2], mStat);
-		mStat.clearShadowLayer();
-
+		// Compact leaves the attributes off and the conditions move up to line 1,
+		// where they keep a fixed place at its right end.
 		float right = w - dp(PAD_H);
-		float left = x0 + mStat.measureText(stats) + dp(8f);
+		if(compact)
+		{
+			mStat.clearShadowLayer();
+			drawBadges(canvas, tail1X + mStat.measureText(tail1) + dp(8f), right, base[0], fm, colour, text);
+		}
+		else
+		{
+			canvas.drawText(stats, x0, base[2], mStat);
+			mStat.clearShadowLayer();
+			drawBadges(canvas, x0 + mStat.measureText(stats) + dp(8f), right, base[2], fm, colour, text);
+		}
+	}
+
+	/** As many conditions as fit between left and right, worst first; the rest become "+N". */
+	private void drawBadges(Canvas canvas, float left, float right, float baseline,
+			Paint.FontMetrics fm, boolean colour, int text)
+	{
 		List<RhBadges.Badge> badges = RhBadges.badgesFor(mStatus);
 		float padX = dp(3f), gap = dp(4f);
-		// Fit as many as there is room for, worst first; the rest become "+N".
 		float used = 0f;
 		int shown = 0;
 		for(int i = 0; i < badges.size(); i++)
@@ -280,15 +339,15 @@ public class RhScreen extends View
 			String more = "+" + hidden;
 			float mw = mStat.measureText(more) + 2 * padX;
 			bx -= mw + (shown > 0 ? gap : 0f);
-			drawBadge(canvas, bx, base[2], fm, more, colour ? 0xff2a302d : text, colour ? 0xffffffff : RhTheme.GLASS_BG);
+			drawBadge(canvas, bx, baseline, fm, more, colour ? 0xff2a302d : text, colour ? 0xffffffff : RhTheme.GLASS_BG);
 			bx += mw + (shown > 0 ? gap : 0f);
 		}
 		for(int i = 0; i < shown; i++)
 		{
 			RhBadges.Badge b = badges.get(i);
 			float bw = mStat.measureText(b.text) + 2 * padX;
-			drawBadge(canvas, bx, base[2], fm, b.text,
-			          colour ? RhBadges.bg(b.tier) : text, colour ? RhBadges.fg(b.tier) : RhTheme.GLASS_BG);
+			drawBadge(canvas, bx, baseline, fm, b.text,
+					colour ? RhBadges.bg(b.tier) : text, colour ? RhBadges.fg(b.tier) : RhTheme.GLASS_BG);
 			bx += bw + gap;
 		}
 	}
@@ -384,20 +443,18 @@ public class RhScreen extends View
 
 	// ____________________________________________________________________________________
 	/**
-	 * The bands are glass, not map: a tap on them stops here.  Only the message
-	 * band answers one, and only while earlier messages have scrolled away -- the
-	 * same rule the colourful style's message panel follows.  The middle of the
-	 * glass passes every touch through to the map.
+	 * The message band is glass, not map: a tap on it stops here, and answers only
+	 * while earlier messages have scrolled away -- the same rule the colourful
+	 * style's message panel followed.  Everything below it passes through to the
+	 * map, the status lines included: they are see-through, and the map under
+	 * them is as live as the rest (Lucas, 2026-09-24).
 	 */
 	@Override
 	public boolean onTouchEvent(MotionEvent e)
 	{
-		float y = e.getY();
-		boolean inMsg = y < dp(MSG_BAND);
-		boolean inStatus = y > getHeight() - dp(STATUS_BAND);
-		if(!inMsg && !inStatus)
+		if(e.getY() >= dp(MSG_BAND))
 			return false;
-		if(inMsg && mMore > 0 && e.getActionMasked() == MotionEvent.ACTION_UP && mListener != null)
+		if(mMore > 0 && e.getActionMasked() == MotionEvent.ACTION_UP && mListener != null)
 			mListener.onHistory();
 		return true;
 	}

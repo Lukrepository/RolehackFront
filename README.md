@@ -15,6 +15,7 @@ It is laid out for two thumbs, in landscape. In portrait, ForkFront's classic bu
 - **Caseless.** The map fills the whole screen. The wells go translucent but still catch near misses. Switch it with GAME → Case on/off, or Settings → Show the case.
 - **Styles.** Terminal (dark), Terminal (light) and GameCube.
 - **Fonts.** Screen: VT323, IBM Plex Mono, Share Tech Mono or Space Mono. Keys: IBM Plex Sans Condensed, Barlow Semi Condensed, Space Mono or the system font.
+- **Status lines.** Full, compact (no attribute line) or hidden, which keeps only conditions such as Stoned, from GAME → Status lines or the settings. The map shows through them and answers a tap under them.
 - **Where the settings are.** MENU → Settings → Mobile interface.
 
 ## Controls at a glance
@@ -25,7 +26,7 @@ Each key shows its tap on its face and its hold on its front edge. The small let
 |---|---|---|
 | Numpad | Move | — |
 | Numpad centre | Search a turn; Pick up when something is underfoot; your own square when asked for a direction | Context menu: attack, pick up, descend, look here, chat |
-| REST | Rest the count shown | Choose the count. Drag the key upward to bring up **Long rest** (searches 100–400 turns), hidden there so it can't be tapped by accident |
+| REST | Rest the count shown | Choose the count. Swipe the key toward the screen's edge to bring in **Long rest** (searches 100–400 turns, or any number), hidden there so it can't be tapped by accident |
 | SACRIFICE | Offer | Pray |
 | M1 · M2 · M3 | Run the macro, or set one up if the key is empty | Edit the macro |
 | DROP | Drop one item | Fan: drop by type, from a menu, review first. Tap DROP again for everything |
@@ -39,6 +40,7 @@ Each key shows its tap on its face and its hold on its front edge. The small let
 | INTERACT | Apply (`a`) | Fan: apply, open, sit, dip, engrave. Tap again for everything |
 | MENU · WORLD · GAME · KEYS | Settings, the command drawers, the keyboard | — |
 
+- **Counts.** Every count row ends in **×n**, which asks for any number up to NetHack's limit of 32767.
 - **Closing things.** Any fan, radial or drawer closes with a tap anywhere else, or the phone's Back button.
 - **Moving commands onto keys.** Open a drawer and press **ASSIGN**, then tap a command. The keys it can go to light up; tap one. OFFENSE's drawer fills its pinned keys, INVENTORY's fills the equipment keys, and a fan key's drawer (DROP, EAT/QUAFF/READ, INTERACT) fills that key's fan.
 - **Lamps under the screen.**
