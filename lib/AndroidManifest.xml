@@ -4,9 +4,9 @@
 
 	<uses-sdk/>
 
-	<uses-permission
-		android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
-	<uses-permission android:name="android.permission.INTERNET"/>
+	<!-- Rolehack: no permissions.  The network was only for Hearse, which
+	     Rolehack switches off, and the game's files live in the app's own
+	     storage, which needs none from Android 10 on (the app needs 11). -->
 
 	<application/>
 </manifest>
