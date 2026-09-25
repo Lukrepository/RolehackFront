@@ -15,7 +15,9 @@ import java.util.Map;
  * Source: design_handoff_rolehack_mobile/README.md, "Command groups" and "Fans".
  * The handoff notes four bindings that were wrong in an earlier draft and are
  * corrected here -- Overview is M-O, Explore mode is #exploremode, Quit is #quit,
- * and C (#call) and M-n (#name) are two different commands.
+ * and C (#call) and M-n (#name) are two different commands.  On this port a
+ * typed "#name" never works: '#' always opens the command menu, so explore
+ * mode went to its key M-X and Quit opens the menu (2026-09-25).
  */
 public final class RhCommands
 {
@@ -93,7 +95,7 @@ public final class RhCommands
 	}
 
 	// ____________________________________________________________________________________
-	// The eleven groups.  A few keys appear in two groups ([ ) = " * M-e C M-n):
+	// The groups.  A few keys appear in two groups ([ ) = " * M-e C M-n):
 	// intentional, per the handoff -- they answer a question and perform a role,
 	// and the player will look for them in either place.
 
@@ -164,14 +166,6 @@ public final class RhCommands
 		i("Invoke", "M-i"),
 	});
 
-	public static final Group LOOK = new Group("look", "LOOK", new Item[] {
-		i("Look here", ":"), i("Far look", ";"), i("What is", "/"), i("Adjacent trap", "^"),
-		i("Attributes", "^X"), i("Known spells", "+"), i("Worn armor", "["), i("Wielded", ")"),
-		i("Worn rings", "="), i("Worn amulet", "\""), i("Tools in use", "("), i("All equipment", "*"),
-		i("Discoveries", "\\"), i("Overview", "M-O"), i("Past messages", "^P"), i("Chronicle", "v"),
-		i("Enhance skills", "M-e"), i("Conduct", "M-C"), i("What does key", "&"), i("Terrain", "#terrain\n"),
-	});
-
 	/**
 	 * Search mode's switch.  The overlay intercepts it in execute(); the key is
 	 * never sent to the core, and PINNABLE drops it so a pinned copy cannot send
@@ -200,6 +194,10 @@ public final class RhCommands
 		i("Chat", "M-c"), i("Pay bill", "p"), i("Sacrifice", "M-o"), i("Sit", "M-s"),
 		i("Jump", "M-j"), i("Teleport", "^T"), i("Ride", "M-R"), i("Monster power", "M-m"),
 		i("Wipe face", "M-w"),
+		// From the old LOOK drawer, which lost its button with the bottom row
+		// and was never reachable (Lucas, 2026-09-25).  Appended, so nothing above
+		// moves.  Terrain is DEL in 5.0 (cmd.c '\177'), written \b for KeySequnece.
+		i("Adjacent trap", "^"), i("Terrain", "\\b"),
 	});
 
 	public static final Group GAME = new Group("game", "GAME", new Item[] {
@@ -216,7 +214,18 @@ public final class RhCommands
 		i("Options", "O"), i("All options", "mO"), i("Save", "S"), i("Help", "?"),
 		i("Annotate", "M-A"), i("Call/name", "C"), i("Name type", "M-n"), i("Autopickup", "@"),
 		i("Repeat", "^A"), i("Redraw", "^R"), i("Version", "V"),
-		i("Explore mode", "#exploremode\n"), i("Quit", "#quit\n"),
+		// Typed "#name" sequences misfire: '#' opens the command menu
+		// (winandroid.c and_get_ext_cmd), and the letters that follow pick menu
+		// entries by accelerator (NHW_Menu.menuSelect): "#quit" would pick
+		// #monster and hand the rest to the game as commands.  Explore mode is
+		// M-X in 5.0.  Quit has no key, so it opens the menu and the player
+		// picks "quit" there.
+		i("Explore mode", "M-X"), i("Quit", "#"),
+		// What you know, from the old LOOK drawer (see WORLD).  Appended after
+		// the existing keys so none of them moves; the most asked-for first.
+		i("Overview", "M-O"), i("Enhance skills", "M-e"), i("Discoveries", "\\"), i("Attributes", "^X"),
+		i("Genocided", "M-g"), i("Vanquished", "M-V"), i("Chronicle", "v"), i("Conduct", "M-C"),
+		i("Past messages", "^P"), i("Known spells", "+"), i("All equipment", "*"), i("What is", "/"),
 	});
 
 	// ____________________________________________________________________________________
@@ -256,7 +265,7 @@ public final class RhCommands
 	private static final Map<String, Group> GROUPS = new LinkedHashMap<String, Group>();
 	static
 	{
-		for(Group g : new Group[] { INVENT, WEAR, WEAPON, EQUIP, DROP, FIGHT, USE, LOOK, WORLD, GAME })
+		for(Group g : new Group[] { INVENT, WEAR, WEAPON, EQUIP, DROP, FIGHT, USE, WORLD, GAME })
 			GROUPS.put(g.id, g);
 	}
 
@@ -383,7 +392,7 @@ public final class RhCommands
 		new Item[] {
 			// Open left the fan (Lucas, 2026-09-24): the context key offers it beside
 			// any closed door, and Close beside an open one.
-			i("Apply tool", "a"), i("Sit", "#sit\n"),
+			i("Apply tool", "a"), i("Sit", "M-s"),
 			i("Dip", "M-d"),
 			// Engrave took Tip's place in the fan; Tip stays in the Use drawer.
 			// Elbereth is not a niche command; tipping a container is.  A hold goes

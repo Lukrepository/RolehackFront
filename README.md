@@ -41,7 +41,7 @@ Each key shows its tap on its face and its hold on its front edge. The small let
 | EAT QUAFF READ | Eat | Fan: eat, quaff, read. Tap again for everything |
 | SEARCH | Search the count shown | Choose the count |
 | INTERACT | Apply (`a`) | Fan: apply, sit, dip, engrave. Tap again for everything |
-| MENU · WORLD · GAME · KEYS | Settings, the command drawers, the keyboard | — |
+| MENU · WORLD · GAME · KEYS | Settings, the command drawers, the keyboard. GAME ends with what you know: Overview, Enhance skills, Discoveries, Attributes, Genocided, Vanquished, Chronicle, Conduct, Past messages, Known spells, All equipment, What is. WORLD ends with Adjacent trap and Terrain | — |
 
 - **Counts.** Every count row ends in **×n**, which asks for any number up to NetHack's limit of 32767.
 - **Closing things.** Any fan, radial or drawer closes with a tap anywhere else, or the phone's Back button.
@@ -51,6 +51,7 @@ Each key shows its tap on its face and its hold on its front edge. The small let
   - ARMED: a command is waiting for a direction.
   - MORE: earlier messages scrolled away. Tap the message lines to read them.
 - **Macros** use gurrhack's notation: `^D` is Ctrl-D, `M-x` is Meta-x, `\e` is Escape, `\n` is Enter, `\b` is backspace.
+  Don't type an extended command's name into a macro (`#sit\n`): `#` opens the command menu, and the letters after it pick menu entries by their shortcut letters. Use the command's own key instead (`M-s` for sit).
 
 ## For developers
 
