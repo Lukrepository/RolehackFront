@@ -146,4 +146,28 @@
 		<item>compact</item>
 		<item>hidden</item>
 	</string-array>
+	<string-array name="rhFeedbackNames">
+		<item>Off</item>
+		<item>Vibration</item>
+		<item>Click</item>
+		<item>Vibration and click</item>
+	</string-array>
+	<string-array name="rhFeedbackValues">
+		<item>off</item>
+		<item>vibrate</item>
+		<item>click</item>
+		<item>both</item>
+	</string-array>
+	<string-array name="rhClickVolumeNames">
+		<item>Quiet</item>
+		<item>Medium</item>
+		<item>Loud</item>
+		<item>Full</item>
+	</string-array>
+	<string-array name="rhClickVolumeValues">
+		<item>30</item>
+		<item>60</item>
+		<item>85</item>
+		<item>100</item>
+	</string-array>
 </resources>

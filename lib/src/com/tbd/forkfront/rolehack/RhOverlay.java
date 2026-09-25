@@ -331,6 +331,7 @@ public class RhOverlay extends FrameLayout
 		mHost = host;
 		mPadCell = RhPrefs.padCell();
 		mPadBox  = 3 * mPadCell + 2 * PAD_GAP;
+		RhFeedback.load(context, PreferenceManager.getDefaultSharedPreferences(context));
 		setClipChildren(false);
 		setClipToPadding(false);
 		build();
@@ -3835,11 +3836,13 @@ public class RhOverlay extends FrameLayout
 				{
 					case MotionEvent.ACTION_DOWN:
 						face.setFacePressed(true);
+						RhFeedback.press(face);
 						return true;
 					case MotionEvent.ACTION_UP:
 						if(face.isFacePressed())
 						{
 							face.setFacePressed(false);
+							RhFeedback.up(face);
 							action.run();
 						}
 						return true;
@@ -3876,6 +3879,7 @@ public class RhOverlay extends FrameLayout
 				{
 					case MotionEvent.ACTION_DOWN:
 						face.setFacePressed(true);
+						RhFeedback.press(face);
 						justOpened = false;
 						pending = new Runnable()
 						{
@@ -3884,6 +3888,7 @@ public class RhOverlay extends FrameLayout
 							{
 								pending = null;
 								justOpened = true;
+								RhFeedback.held(face);
 								onHold.run();
 							}
 						};
@@ -3892,6 +3897,7 @@ public class RhOverlay extends FrameLayout
 
 					case MotionEvent.ACTION_UP:
 						face.setFacePressed(false);
+						RhFeedback.up(face);
 						if(justOpened)
 						{
 							justOpened = false;
@@ -4028,6 +4034,8 @@ public class RhOverlay extends FrameLayout
 			private long downAt;
 			private float x0, y0;
 			private int wedge = -1;
+			/** The last wedge a detent was felt for, so a re-highlight does not tick twice. */
+			private int ticked = -1;
 
 			private int wedgeAt(float dx, float dy)
 			{
@@ -4057,6 +4065,12 @@ public class RhOverlay extends FrameLayout
 
 			private void highlight(int i)
 			{
+				if(dragging && i != ticked)
+				{
+					if(i >= 0)
+						RhFeedback.detent(face);
+					ticked = i;
+				}
 				if(i == wedge)
 					return;
 				RhFace old = node(wedge);
@@ -4116,7 +4130,9 @@ public class RhOverlay extends FrameLayout
 				{
 					case MotionEvent.ACTION_DOWN:
 						face.setFacePressed(true);
+						RhFeedback.press(face);
 						reset();
+						ticked = -1;
 						x0 = e.getX();
 						y0 = e.getY();
 						downAt = e.getEventTime();
@@ -4127,6 +4143,7 @@ public class RhOverlay extends FrameLayout
 							{
 								pendingHold = null;
 								justOpened = true;
+								RhFeedback.held(face);
 								onHold.run();
 							}
 						};
@@ -4289,6 +4306,7 @@ public class RhOverlay extends FrameLayout
 	{
 		RhTheme.loadPrefs(prefs);
 		RhPrefs.load(prefs);
+		RhFeedback.load(mContext, prefs);
 		// Movement key size is a preference, and every pad-derived position reads
 		// these; assigning them only in the constructor meant a new size waited
 		// for an app restart.

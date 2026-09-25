@@ -1,0 +1,11 @@
+The key click for the Rolehack interface's "Key feedback" setting.
+
+key-tactile.ogg  "Keyboard_Tactile_8" by StavSounds
+                 https://freesound.org/people/StavSounds/sounds/766639/
+
+Dedicated to the public domain under CC0 1.0
+(https://creativecommons.org/publicdomain/zero/1.0/).  CC0 asks for no
+credit; it is given anyway.  The file is Freesound's high-quality Ogg
+Vorbis preview of the sound, unedited, fetched 2026-09-25.  Lucas chose it
+on the phone over bigmonmulgrew's "mechanical key hard" (#378085) and
+newagesoup's "MECH-KEYBOARD-01" (#348239), also CC0.

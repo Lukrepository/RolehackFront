@@ -126,6 +126,7 @@ public class RhDrawer extends FrameLayout
 			@Override
 			public void onClick(View v)
 			{
+				RhFeedback.press(v);
 				setAssigning(!mAssigning);
 			}
 		});
@@ -194,6 +195,7 @@ public class RhDrawer extends FrameLayout
 				@Override
 				public void onClick(View v)
 				{
+					RhFeedback.press(v);
 					if(mAssigning)
 						mListener.onItemPin(item);
 					else
@@ -205,6 +207,7 @@ public class RhDrawer extends FrameLayout
 				@Override
 				public boolean onLongClick(View v)
 				{
+					RhFeedback.held(v);
 					mListener.onItemPin(item);
 					return true;
 				}
@@ -283,12 +286,20 @@ public class RhDrawer extends FrameLayout
 			requestLayout();
 		}
 
+		/*
+		 * Cap the height before the children are measured.  Clamping only our
+		 * own measured size afterwards left the ScrollView measured at its full
+		 * content height: it had nothing to scroll, and the rows past the cap
+		 * were simply clipped (Lucas, 2026-09-25: the drawers do not scroll --
+		 * GAME's last row and the wizard-mode extras were unreachable).
+		 */
 		@Override
 		protected void onMeasure(int widthSpec, int heightSpec)
 		{
-			super.onMeasure(widthSpec, heightSpec);
-			if(getMeasuredHeight() > mMaxHeightPx)
-				setMeasuredDimension(getMeasuredWidth(), mMaxHeightPx);
+			int cap = mMaxHeightPx;
+			if(MeasureSpec.getMode(heightSpec) != MeasureSpec.UNSPECIFIED)
+				cap = Math.min(cap, MeasureSpec.getSize(heightSpec));
+			super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST));
 		}
 
 		@Override

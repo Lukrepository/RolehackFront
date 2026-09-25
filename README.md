@@ -19,6 +19,7 @@ It is laid out for two thumbs, and works held either way. Turn the phone mid-gam
 - **Styles.** Terminal (dark), Terminal (light) and GameCube.
 - **Fonts.** Screen: VT323, IBM Plex Mono, Share Tech Mono or Space Mono. Keys: IBM Plex Sans Condensed, Barlow Semi Condensed, Space Mono or the system font.
 - **Status lines.** Full, compact (no attribute line) or hidden, which keeps only conditions such as Stoned, from GAME → Status lines or the settings. The map shows through them and answers a tap under them.
+- **Key feedback.** A vibration when a key goes down (on by default, following the phone's own touch-feedback setting), a recorded mechanical keyboard click, both, or neither. The vibration also marks a completed hold and each wedge a flick crosses. The click has its own volume.
 - **Where the settings are.** MENU → Settings → Mobile interface.
 
 ## Controls at a glance
@@ -74,3 +75,4 @@ It hooks into ForkFront in a few places: `NH_State` routes the Back key and sets
 - **ForkFront:** gurrhack and JodiJodington. It has no licence file in its upstream repositories; its copyright remains with its authors.
 - **The Rolehack interface:** Lucas Ruiz.
 - **Fonts:** SIL Open Font License 1.1. The notices are in `lib/assets/fonts/OFL.txt`.
+- **Key click:** "Keyboard_Tactile_8" by StavSounds, CC0, from Freesound. See `lib/assets/sounds/CREDITS.txt`.

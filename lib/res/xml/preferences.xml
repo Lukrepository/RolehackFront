@@ -181,6 +181,24 @@
 				android:key="rhKeyFlash"/>
 
 			<ListPreference
+				android:title="Key feedback"
+				android:summary="A vibration, a keyboard click, both or neither when a key goes down. Vibration follows the phone's own touch-feedback setting"
+				android:persistent="true"
+				android:key="rhFeedback"
+				android:defaultValue="vibrate"
+				android:entries="@array/rhFeedbackNames"
+				android:entryValues="@array/rhFeedbackValues"/>
+
+			<ListPreference
+				android:title="Click volume"
+				android:summary="A share of the phone's media volume"
+				android:persistent="true"
+				android:key="rhClickVolume"
+				android:defaultValue="60"
+				android:entries="@array/rhClickVolumeNames"
+				android:entryValues="@array/rhClickVolumeValues"/>
+
+			<ListPreference
 				android:title="Movement key size"
 				android:summary="Bigger keys mis-tap less; smaller keys need less thumb travel"
 				android:persistent="true"
