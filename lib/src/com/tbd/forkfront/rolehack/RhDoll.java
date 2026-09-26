@@ -49,6 +49,11 @@ import java.util.Map;
  *    a signature -- the hooded cloak's hood up behind the head, the opera
  *    cloak's tall collar, the ornamental cope's trim, the tattered cape's
  *    rags -- and the robe, apron and mummy wrapping are drawn as themselves.
+ *  - Helmets are drawn as their look too (tools/paperdoll/helmets.py), from
+ *    the style the core sends: the fedora's brim, the conical hat, the dented
+ *    pot's handle, the plume, the crest, the visor -- each drawn for the
+ *    human frame and the short one, after clearing what the tile wore above
+ *    the eyes.
  *  - Draw order is the occlusion rule.  A cloak is a cape behind the body
  *    (Lucas: it was covering the armour): it paints only background down
  *    both sides and flares at the hem -- plus the drop shadow on the right --
@@ -125,7 +130,42 @@ public final class RhDoll
 	};
 	private static final String DARKER_FROM = "NOWHCKBG", DARKER_TO = "OWVCKJEF";
 
-	// Cloak styles, as the core numbers them (rh_doll_cloak()).
+	/**
+	 * Helmets, as the core numbers them (rh_doll_look(), rh_helm_looks[]):
+	 * "x,y,colour" on the human frame, relative to the head anchor (face x6-9,
+	 * eyes on row 4), drawn after clearing rows 0-3, x3-12.
+	 */
+	private static final String[] HELMS = {
+		null,
+		"6,2,J 7,2,C 8,2,K 9,2,J 5,3,J 6,3,C 7,3,K 8,3,K 9,3,J 10,3,A 5,4,J 10,4,J 5,5,J 10,5,J",   // leather hat,
+		"7,2,B 8,2,P 6,3,N 7,3,B 8,3,P 9,3,P 10,3,A 5,4,J 10,4,J",   // iron skull cap,
+		"7,1,P 8,1,P 6,2,P 7,2,N 8,2,P 9,2,P 10,2,A 5,3,P 6,3,P 7,3,P 8,3,P 9,3,P 10,3,P 11,3,A",   // hard hat,
+		"6,1,A 7,1,A 8,1,A 9,1,A 6,2,K 7,2,K 8,2,K 9,2,K 4,3,A 5,3,A 6,3,A 7,3,A 8,3,A 9,3,A 10,3,A 11,3,A",   // fedora,
+		"8,0,E 7,1,B 8,1,E 6,2,E 7,2,N 8,2,B 9,2,E 5,3,E 6,3,B 7,3,B 8,3,B 9,3,B 10,3,E",   // conical hat,
+		"6,1,B 7,1,P 8,1,P 9,1,P 6,2,B 7,2,P 8,2,A 9,2,P 10,2,J 11,1,J 12,0,J 6,3,B 7,3,B 8,3,P 9,3,P 10,3,A",   // dented pot,
+		"7,1,N 8,1,N 6,2,N 7,2,I 8,2,B 9,2,N 10,2,A 6,3,B 7,3,N 8,3,I 9,3,B 10,3,A",   // crystal helmet,
+		"8,0,D 9,0,D 7,1,I 8,1,D 6,2,P 7,2,N 8,2,P 9,2,P 10,2,A 6,3,N 7,3,P 8,3,P 9,3,P 10,3,A",   // plumed helmet,
+		"6,2,P 7,2,N 8,2,B 9,2,P 10,2,A 6,3,N 7,3,B 8,3,N 9,3,B 10,3,A",   // etched helmet,
+		"8,0,H 7,1,H 8,1,H 9,1,H 6,2,P 7,2,N 8,2,P 9,2,P 10,2,A 6,3,N 7,3,P 8,3,P 9,3,P 10,3,A",   // crested helmet,
+		"6,2,P 7,2,N 8,2,P 9,2,P 10,2,A 6,3,P 7,3,P 8,3,P 9,3,P 10,3,A 6,4,P 7,4,B 8,4,B 9,4,P 6,5,P 9,5,P",   // visored helmet
+	};
+	/** The same looks on the short frame (tile coordinates), after clearing its hat. */
+	private static final String[] HELMS_SHORT = {
+		null,
+		"5,5,C 6,5,K 7,5,J 4,6,J 5,6,C 6,6,K 7,6,K 8,6,J 4,7,J 8,7,J",   // leather hat,
+		"5,5,B 6,5,P 7,5,A 4,6,N 5,6,B 6,6,P 7,6,P 8,6,A 4,7,J 8,7,J",   // iron skull cap,
+		"5,4,P 6,4,P 4,5,P 5,5,N 6,5,P 7,5,P 8,5,A 3,6,P 4,6,P 5,6,P 6,6,P 7,6,P 8,6,P 9,6,A",   // hard hat,
+		"5,4,A 6,4,A 7,4,A 5,5,K 6,5,K 7,5,K 3,6,A 4,6,A 5,6,A 6,6,A 7,6,A 8,6,A 9,6,A",   // fedora,
+		"6,2,E 6,3,B 7,3,E 5,4,E 6,4,N 7,4,E 5,5,E 6,5,B 7,5,B 8,5,E 4,6,E 5,6,B 6,6,B 7,6,B 8,6,E",   // conical hat,
+		"5,5,B 6,5,P 7,5,P 8,5,P 4,6,B 5,6,P 6,6,A 7,6,P 8,6,P 9,6,J 10,5,J 11,4,J",   // dented pot,
+		"5,5,N 6,5,N 4,6,N 5,6,I 6,6,B 7,6,N 8,6,A",   // crystal helmet,
+		"6,3,D 5,4,I 6,4,D 5,5,P 6,5,N 7,5,P 8,5,A 4,6,N 5,6,P 6,6,P 7,6,P 8,6,A",   // plumed helmet,
+		"5,5,P 6,5,N 7,5,B 8,5,A 4,6,N 5,6,B 6,6,N 7,6,B 8,6,A",   // etched helmet,
+		"6,3,H 5,4,H 6,4,H 5,5,P 6,5,N 7,5,P 8,5,A 4,6,N 5,6,P 6,6,P 7,6,P 8,6,A",   // crested helmet,
+		"5,5,P 6,5,N 7,5,P 8,5,A 4,6,P 5,6,P 6,6,P 7,6,P 8,6,A 5,7,B 6,7,B 7,7,B",   // visored helmet
+	};
+
+	// Cloak styles, as the core numbers them (rh_doll_look(), rh_cloak_looks[]).
 	private static final int C_PALL = 1, C_MANTELET = 2, C_HOOD = 3, C_SLICK = 4, C_LEATHER = 5,
 		C_TATTERED = 6, C_OPERA = 7, C_COPE = 8, C_CLOTH = 9, C_ROBE = 10, C_APRON = 11, C_WRAPPING = 12;
 
@@ -157,7 +197,7 @@ public final class RhDoll
 
 	private static final int SHORT_BLADE = 1, SWORD = 2, GREAT_SWORD = 3, AXE = 4,
 		PICK = 5, BLUNT = 6, STAFF = 7, POLE = 8, LAUNCHER = 9, MISSILE = 10,
-		WHIP = 11, HORN = 12;
+		WHIP = 11, HORN = 12, CHAIN = 13;
 
 	public static final class Look
 	{
@@ -197,6 +237,8 @@ public final class RhDoll
 		int tile(int slot)  { return mA[4 + 3 * slot]; }
 		int color(int slot) { return mA[5 + 3 * slot]; }
 		int shape(int slot) { return mA[6 + 3 * slot]; }
+		/** The artifact's own art (the core's rh_doll_arts[] + 1), or 0: bits 17-22. */
+		int art(int slot)   { return (shape(slot) >> 17) & 0x3f; }
 		boolean has(int slot) { return tile(slot) >= 0; }
 		/** Worn, and not already drawn by the hero's own tile. */
 		boolean draws(int slot) { return has(slot) && (shape(slot) & COSTUME) == 0; }
@@ -212,6 +254,7 @@ public final class RhDoll
 		int[] feetCols = { 5, 6, 9, 10 };
 		boolean shortFrame;          // dwarf and gnome: their own short body (dressShort)
 		int[] keep = {};             // x,y pairs the layers leave alone: a beard
+		int[] offPose = {};          // x,y,colour: repainted while the off hand holds something
 
 		Anchor head(int dx, int dy)  { headDx = dx; headDy = dy; return this; }
 		Anchor torso(int dx, int dy) { torsoDx = dx; torsoDy = dy; return this; }
@@ -220,6 +263,13 @@ public final class RhDoll
 		Anchor feet(int row, int... cols) { feetRow = row; feetCols = cols; return this; }
 		Anchor robe() { feetRow = -1; return this; }
 		Anchor shortFrame(int... keepXY) { shortFrame = true; keep = keepXY; return this; }
+		/** Layers leave these x,y pairs alone (a beard; a flask held up by the head). */
+		Anchor keep(int... xy) { keep = xy; return this; }
+		/**
+		 * The tile's off arm, repainted when a shield or a second weapon is drawn:
+		 * x, y, colour -- '~' background, 'L' the hero's skin, else a palette letter.
+		 */
+		Anchor offPose(int... xyc) { offPose = xyc; return this; }
 		boolean keeps(int x, int y)
 		{
 			for(int i = 0; i + 1 < keep.length; i += 2)
@@ -248,9 +298,13 @@ public final class RhDoll
 		pair(696, new Anchor().head(0, 1).torso(0, 1).grips(4, 11, 11, 11).feet(14, 5, 6, 9, 10));    // tourist
 		pair(698, new Anchor());                                                                       // valkyrie
 		pair(700, new Anchor().robe());                                                                // wizard
-		// apothecary: Lucas's tile (2026-09-25) -- eyes on row 3, face x5-8, the pistol
-		// hand at (4,10), the hanging hand at (9,10), high boots on row 13
-		pair(702, new Anchor().head(-1, -1).grips(4, 10, 9, 10).hands(3, 9, 9, 10).feet(13, 5, 6, 8, 9));
+		// apothecary: Claude's tile (2026-09-26, Lucas: "let's use it"), on vanilla's
+		// frame, holding a flask up to the light in the off hand.  The flask's neck (12,3)
+		// survives a helmet; gloves go on the main hand and either off-hand place; a
+		// shield or a second weapon brings the arm down to the usual grip (11,10).
+		pair(702, new Anchor().hands(4, 10, 12, 5, 11, 10).keep(12, 3)
+		                      .offPose(11, 7, '~', 12, 6, '~', 12, 5, '~', 12, 4, '~', 13, 4, '~',
+		                               12, 3, '~', 13, 5, '~', 11, 8, 'O', 11, 9, 'L', 11, 10, 'L'));
 		pair(532, new Anchor());                                                                       // human (showrace)
 		pair(540, new Anchor());                                                                       // elf
 		// dwarf and gnome: a short frame of their own (dressShort) -- face on row 7, torso
@@ -331,6 +385,56 @@ public final class RhDoll
 	private static final Sprite S_MISSILE = new Sprite(-2, 0, "l", -1, 0, "m");
 	private static final Sprite S_WHIP = new Sprite(1, -1, "J", 2, -2, "J", 3, -2, "J", 3, -1, "J");
 	private static final Sprite S_HORN = new Sprite(-5, 0, "N", -4, 0, "Z", -3, 0, "N", -2, 0, "Z", -1, 0, "N");
+	// a morning star: a spiked ball on a chain, as vanilla's floor tile draws it (Lucas, 2026-09-26)
+	private static final Sprite S_CHAIN = new Sprite(
+		-8, -3, "d", -7, -3, "lmd", -6, -4, "dmd", -5, -2, "X", -4, -1, "X", -3, 0, "K", -2, 0, "J", -1, 0, "J");
+
+	// Artifacts with art of their own (Lucas, 2026-09-26; tools/paperdoll/artifacts*.py,
+	// printed by artgen.py), numbered as the core's rh_doll_arts[]: artilist.h's order.
+	private static final int ART_EYES = 26, ART_MITRE = 27, ART_AETHIOPICA = 33;
+	/** Held artifacts, relative to the grip; null for the worn ones. */
+	private static final Sprite[] ART_HELD = {
+		null,
+		new Sprite(-7, 0, "N", -6, 0, "N", -5, 0, "N", -4, 0, "M", -3, 0, "N", -2, 0, "M", -1, -2, "HHBHH", 1, 0, "H"),   // 1 Excalibur
+		new Sprite(-7, 0, "R", -6, 0, "D", -5, 0, "R", -4, 0, "Q", -3, 0, "D", -2, 0, "R", -1, -1, "QDQ", 1, 0, "D"),   // 2 Stormbringer
+		new Sprite(-7, -3, "B", -6, -2, "NOO", -5, -2, "OWW", -4, -2, "B.J", -3, 0, "J", -2, 0, "J", -1, 0, "K"),   // 3 Mjollnir
+		new Sprite(-7, -2, "N.J", -6, -3, "NOOJ", -5, -3, "OWWJW", -4, -2, "W.J", -3, 0, "J", -2, 0, "J", -1, 0, "J"),   // 4 Cleaver
+		new Sprite(-4, 0, "S", -3, -1, "DR", -2, 0, "G", -1, -1, "RJR"),   // 5 Grimtooth
+		new Sprite(-7, 0, "N", -6, -1, "BN", -5, 0, "N", -4, -1, "BN", -3, 0, "N", -2, 0, "O", -1, -1, "FGF", 1, 0, "F"),   // 6 Orcrist
+		new Sprite(-4, 0, "B", -3, -1, "BN", -2, 0, "N", -1, -1, "FGF"),   // 7 Sting
+		new Sprite(-4, -1, "I.I", -3, 0, "N", -2, 0, "M", -1, -1, "QIQ"),   // 8 Magicbane
+		new Sprite(-7, 0, "N", -6, -1, "NB", -5, 0, "B", -4, 0, "N", -3, 0, "B", -2, 0, "B", -1, -1, "PBP", 1, 0, "P"),   // 9 Frost Brand
+		new Sprite(-7, 0, "H", -6, 0, "C", -5, 0, "H", -4, -1, "DC", -3, 0, "D", -2, 0, "D", -1, -1, "RDR", 1, 0, "D"),   // 10 Fire Brand
+		new Sprite(-7, 0, "N", -6, 0, "N", -5, 0, "N", -4, 0, "N", -3, 0, "M", -2, -2, "D.M.D", -1, -2, "DKKKD", 1, 0, "K"),   // 11 Dragonbane
+		new Sprite(-7, 0, "H", -6, -1, "NN", -5, -1, "ZZ", -4, 0, "H", -3, 0, "O", -2, 0, "O", -1, 0, "O"),   // 12 Demonbane
+		new Sprite(-7, -1, "N", -6, -1, "Z", -5, 0, "N", -4, 0, "Z", -3, 0, "N", -2, 0, "Z", -1, -1, "IEI", 1, 0, "I"),   // 13 Werebane
+		new Sprite(-7, -1, "Z", -6, -1, "Y", -5, 0, "Z", -4, -1, "NZ", -3, 0, "Y", -2, 0, "Z", -1, -1, "TST", 1, 0, "S"),   // 14 Grayswandir
+		new Sprite(-7, 0, "Z", -6, -1, "YZ", -5, -1, "YO", -4, -1, "YZ", -3, -1, "YO", -2, -1, "YO", -1, -2, "JKKJ", 1, 0, "K"),   // 15 Giantslayer
+		new Sprite(-7, -1, "YYW", -6, -1, "WWS", -5, -1, "WSS", -4, 0, "J", -3, 0, "J", -2, 0, "J", -1, 0, "J"),   // 16 Ogresmasher
+		new Sprite(-9, -3, "S", -8, -4, "ZYX", -7, -5, "SYXWS", -6, -4, "XWW", -5, -3, "S.X", -4, -1, "X", -3, 0, "K", -2, 0, "J", -1, 0, "J"),   // 17 Trollsbane
+		new Sprite(-9, 0, "N", -8, 0, "M", -7, 0, "N", -6, 0, "M", -5, 0, "N", -4, 0, "M", -3, 0, "N", -2, 0, "M", -1, -1, "SQS", 1, 0, "S"),   // 18 Vorpal Blade
+		new Sprite(-7, 1, "N", -6, 0, "N", -5, 0, "O", -4, 0, "N", -3, 0, "O", -2, 0, "N", -1, -1, "AHA", 1, 0, "R", 2, 0, "N"),   // 19 Snickersnee
+		new Sprite(-8, 0, "H", -7, -1, "HNH", -6, 0, "H", -5, 0, "N", -4, 0, "H", -3, 0, "H", -2, 0, "N", -1, -1, "CHC", 1, 0, "H"),   // 20 Sunsword
+		new Sprite(-3, -2, "NB", -2, -3, "BBP", -1, -2, "PE"),   // 21 Orb of Detection
+		new Sprite(-3, -3, "D.D", -2, -3, "DCD", -1, -2, "D"),   // 22 Heart of Ahriman
+		new Sprite(-8, -1, "H.H", -7, -1, "HIH", -6, 0, "H", -5, 0, "H", -4, 0, "H", -3, 0, "H", -2, 0, "H", -1, 0, "K"),   // 23 Sceptre of Might
+		new Sprite(-8, -1, "GK", -7, 0, "G", -6, 0, "JG", -5, 0, "G", -4, -1, "GJ", -3, 0, "G", -2, 0, "JG", -1, 0, "J", 1, 0, "J", 2, 0, "J"),   // 24 Staff of Aesculapius
+		new Sprite(-5, -1, "H", -4, -2, "HBH", -3, -2, "HNH", -2, -1, "H", -1, 0, "H"),   // 25 Magic Mirror of Merlin
+		null,   // 26 Eyes of the Overworld (worn)
+		null,   // 27 Mitre of Holiness (worn)
+		new Sprite(-5, -1, "N", -4, -2, "Z", -3, -2, "Z", -2, -2, "N", -1, -2, "Z", 0, -2, "Z", 1, -2, "Z", 2, -2, "N", 3, -1, "Z"),   // 28 Longbow of Diana
+		new Sprite(-5, 0, "H", -4, -1, "HH", -3, -1, "HH", -2, 0, "H", -1, 0, "K", 1, -1, "H.H", 2, 0, "H"),   // 29 Master Key of Thievery
+		new Sprite(-10, 0, "N", -9, 0, "O", -8, 0, "D", -7, 0, "N", -6, 0, "O", -5, 0, "D", -4, 0, "N", -3, 0, "O", -2, -1, "AHA", -1, 0, "R", 1, 0, "R"),   // 30 Tsurugi of Muramasa
+		new Sprite(-4, -3, "ZNN", -3, -3, "RRS", -2, -3, "HRR", -1, -3, "QQR"),   // 31 Platinum Yendorian Express Card
+		new Sprite(-3, -2, "NH", -2, -3, "HHK", -1, -2, "KJ"),   // 32 Orb of Fate
+		null,   // 33 Eye of the Aethiopica (worn)
+		new Sprite(-5, 0, "H", -4, 0, "N", -3, 0, "H", -2, 0, "N", -1, 0, "H"),   // 34 Lapis Philosophorum
+	};
+	private static final String ART_MITRE_HUMAN = "7,0,N 8,0,M 6,1,N 7,1,H 8,1,N 9,1,M 6,2,H 7,2,H 8,2,H 9,2,H 5,3,N 6,3,N 7,3,H 8,3,N 9,3,M 10,3,A";
+	private static final String ART_MITRE_SHORT = "6,2,N 5,3,N 6,3,H 7,3,M 5,4,H 6,4,H 7,4,H 5,5,N 6,5,H 7,5,M 4,6,N 5,6,N 6,6,H 7,6,N 8,6,M";
+	private static final Sprite S_EYES = new Sprite(4, 5, "AHNHNA"), S_EYES_SHORT = new Sprite(7, 4, "HNHNH");
+	private static final Sprite S_AETHIOPICA = new Sprite(8, 6, "HEH");
+	private static final char AETHIOPICA_SHORT = 'E';
 	// The short frame's own sprites, in tile coordinates (tools/paperdoll/short.py).
 	// The helmet clears the tile's hat and cheek pieces, then a smaller dome.
 	private static final Sprite S_HELMET_SHORT = new Sprite(
@@ -356,6 +460,14 @@ public final class RhDoll
 	/** Anything that is not a weapon: a thing held up in the hand. */
 	private static final Sprite S_HELD = new Sprite(-2, -1, "lm", -1, -1, "md");
 
+	/** What the hand holds: an artifact's own art once its name is known, else its family's. */
+	private static Sprite heldSprite(Look look, int slot)
+	{
+		int art = look.art(slot);
+		Sprite s = art > 0 && art < ART_HELD.length ? ART_HELD[art] : null;
+		return s != null ? s : weaponSprite(look.shape(slot));
+	}
+
 	private static Sprite weaponSprite(int shape)
 	{
 		switch(shape & 0xff)
@@ -372,6 +484,7 @@ public final class RhDoll
 		case MISSILE:     return S_MISSILE;
 		case WHIP:        return S_WHIP;
 		case HORN:        return S_HORN;
+		case CHAIN:       return S_CHAIN;
 		default:          return S_HELD;
 		}
 	}
@@ -475,6 +588,14 @@ public final class RhDoll
 	/** Gear on the human frame, which every hero body but dwarf and gnome shares. */
 	private void dressHuman(int[] px, int bg, Look look, Anchor a, Tileset ts)
 	{
+		// first, before any layer: the tile's off-hand pose gives way to a shield or
+		// a second weapon, so armour then covers the lowered arm as it would any other
+		if(look.draws(SHIELD) || look.has(OFFHAND))
+			for(int i = 0; i + 2 < a.offPose.length; i += 3)
+			{
+				char c = (char)a.offPose[i + 2];
+				putPx(px, a.offPose[i], a.offPose[i + 1], c == '~' ? bg : c == 'L' ? TONES[look.tone] : fixed(c));
+			}
 		boolean front = look.has(CLOAK) && (look.shape(CLOAK) & FRONT) != 0;
 		boolean cape = look.draws(CLOAK) && !front;
 		boolean covered = look.has(SUIT) || front;
@@ -496,7 +617,8 @@ public final class RhDoll
 		if(look.draws(SUIT) && (look.shape(SUIT) & DRAGON) != 0)
 			stampPauldrons(px, (look.shape(SUIT) >> 12) & 0xf, a);
 		if(look.draws(AMULET) && !covered)
-			stamp(px, bg, S_AMULET, a.torsoDx, a.torsoDy, false, ramp(look, AMULET, ts, false));
+			stamp(px, bg, look.art(AMULET) == ART_AETHIOPICA ? S_AETHIOPICA : S_AMULET, a.torsoDx, a.torsoDy,
+			      false, ramp(look, AMULET, ts, false));
 		if(look.draws(BOOTS) && a.feetRow >= 0)
 		{
 			int c = ramp(look, BOOTS, ts, false)[1];
@@ -511,16 +633,17 @@ public final class RhDoll
 				recolour(px, bg, h[i], h[i + 1], c);
 		}
 		if(look.draws(HELMET))
-			stamp(px, bg, S_HELMET, a.headDx, a.headDy, false, ramp(look, HELMET, ts, false));
+			stampHelmet(px, bg, look, a, ts);
 		if(look.draws(EYEWEAR))
-			stamp(px, bg, S_EYEWEAR, a.headDx, a.headDy, false, ramp(look, EYEWEAR, ts, false));
+			stamp(px, bg, look.art(EYEWEAR) == ART_EYES ? S_EYES : S_EYEWEAR, a.headDx, a.headDy, false,
+			      ramp(look, EYEWEAR, ts, false));
 		if(look.draws(SHIELD))
 			stamp(px, bg, S_SHIELD, a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
 		if(look.has(WEAPON))
-			stamp(px, bg, weaponSprite(look.shape(WEAPON)), a.mainX, a.mainY, false,
+			stamp(px, bg, heldSprite(look, WEAPON), a.mainX, a.mainY, false,
 			      ramp(look, WEAPON, ts, false));
 		if(look.has(OFFHAND))
-			stamp(px, bg, weaponSprite(look.shape(OFFHAND)), a.offX, a.offY, true,
+			stamp(px, bg, heldSprite(look, OFFHAND), a.offX, a.offY, true,
 			      ramp(look, OFFHAND, ts, false));
 	}
 
@@ -528,8 +651,9 @@ public final class RhDoll
 	 * Gear on the short frame (dwarf, gnome): the same items, drawn to that body
 	 * -- a short suit mask around the beard, a helmet that replaces the tile's
 	 * own hat, a cape at x2 and x10 with no clasp (the beard covers the neck),
-	 * pauldrons on the lower shoulders, a buckler, and weapons at two-thirds
-	 * height, so a longsword is no taller than a dwarf.
+	 * pauldrons on the lower shoulders, a buckler, and weapons at full size:
+	 * pound for pound the small races are the strong ones (Lucas, 2026-09-26;
+	 * they were squashed to two-thirds before).
 	 */
 	private void dressShort(int[] px, int bg, Look look, Anchor a, Tileset ts)
 	{
@@ -547,7 +671,8 @@ public final class RhDoll
 		if(look.draws(SUIT) && (look.shape(SUIT) & DRAGON) != 0)
 			stampPauldrons(px, (look.shape(SUIT) >> 12) & 0xf, a);
 		if(look.draws(AMULET) && !covered && !a.keeps(6, 10))
-			putPx(px, 6, 10, ramp(look, AMULET, ts, false)[1]);
+			putPx(px, 6, 10, look.art(AMULET) == ART_AETHIOPICA ? fixed(AETHIOPICA_SHORT)
+			                                                       : ramp(look, AMULET, ts, false)[1]);
 		if(look.draws(BOOTS))
 		{
 			int c = ramp(look, BOOTS, ts, false)[1];
@@ -561,17 +686,18 @@ public final class RhDoll
 			recolour(px, bg, a.offX, a.offY, c);
 		}
 		if(look.draws(HELMET))
-			stamp(px, bg, S_HELMET_SHORT, 0, 0, false, ramp(look, HELMET, ts, false));
+			stampHelmet(px, bg, look, a, ts);
 		if(look.draws(EYEWEAR))
-			stamp(px, bg, S_EYEWEAR_SHORT, 0, 0, false, ramp(look, EYEWEAR, ts, false));
+			stamp(px, bg, look.art(EYEWEAR) == ART_EYES ? S_EYES_SHORT : S_EYEWEAR_SHORT, 0, 0, false,
+			      ramp(look, EYEWEAR, ts, false));
 		if(look.draws(SHIELD))
 			stamp(px, bg, S_SHIELD_SHORT, a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
 		if(look.has(WEAPON))
-			stampSquashed(px, weaponSprite(look.shape(WEAPON)), a.mainX, a.mainY, false,
-			              ramp(look, WEAPON, ts, false));
+			stamp(px, bg, heldSprite(look, WEAPON), a.mainX, a.mainY, false,
+			      ramp(look, WEAPON, ts, false));
 		if(look.has(OFFHAND))
-			stampSquashed(px, weaponSprite(look.shape(OFFHAND)), a.offX, a.offY, true,
-			              ramp(look, OFFHAND, ts, false));
+			stamp(px, bg, heldSprite(look, OFFHAND), a.offX, a.offY, true,
+			      ramp(look, OFFHAND, ts, false));
 	}
 
 	/**
@@ -678,26 +804,6 @@ public final class RhDoll
 					continue;
 				putPx(px, x, y, c == 'l' ? ramp[0] : c == 'm' ? ramp[1] : c == 'd' ? ramp[2] : fixed(c));
 			}
-	}
-
-	/** A weapon on the short frame: rows above the grip at two-thirds height. */
-	private static void stampSquashed(int[] px, Sprite s, int ox, int oy, boolean mirror, int[] ramp)
-	{
-		for(int r = 0; r < s.rows.length; r++)
-		{
-			int ry = s.ys[r];
-			if(ry < -1)
-				ry = -1 + Math.floorDiv((ry + 1) * 2, 3);
-			for(int i = 0; i < s.rows[r].length(); i++)
-			{
-				char c = s.rows[r].charAt(i);
-				if(c == '.')
-					continue;
-				int dx = s.x0s[r] + i;
-				putPx(px, ox + (mirror ? -dx : dx), oy + ry,
-				      c == 'l' ? ramp[0] : c == 'm' ? ramp[1] : c == 'd' ? ramp[2] : fixed(c));
-			}
-		}
 	}
 
 	/** The suit tile's shoulder row, the first with six drawn pixels across x3-12 (mItem). */
@@ -860,6 +966,47 @@ public final class RhDoll
 				return new int[] { 0xff6c91b6, 0xff363636, 0xff121212 };
 		}
 		return ramp(look, slot, ts, false);
+	}
+
+	/**
+	 * A helmet, drawn as its look: clear what the tile wears above the eyes
+	 * (hair, hats, hoods; on the short frame the tile's own hat and cheek
+	 * pieces), then draw the style.  An unknown look (another tileset) falls
+	 * back to the tinted dome.
+	 */
+	private void stampHelmet(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	{
+		boolean mitre = look.art(HELMET) == ART_MITRE;
+		int st = look.shape(HELMET) & 0xff;
+		String[] set = a.shortFrame ? HELMS_SHORT : HELMS;
+		if(!mitre && (st <= 0 || st >= set.length))
+		{
+			if(a.shortFrame)
+				stamp(px, bg, S_HELMET_SHORT, 0, 0, false, ramp(look, HELMET, ts, false));
+			else
+				stamp(px, bg, S_HELMET, a.headDx, a.headDy, false, ramp(look, HELMET, ts, false));
+			return;
+		}
+		int dx = a.shortFrame ? 0 : a.headDx, dy = a.shortFrame ? 0 : a.headDy;
+		if(a.shortFrame)
+		{
+			for(int y = 0; y <= 6; y++)
+				for(int x = 2; x <= 10; x++)
+					px[y * 16 + x] = bg;
+			putPx(px, 4, 7, bg);
+			putPx(px, 8, 7, bg);
+		}
+		else
+			for(int y = 0; y <= 3; y++)
+				for(int x = 3; x <= 12; x++)
+					if(!a.keeps(x + dx, y + dy))
+						putPx(px, x + dx, y + dy, bg);
+		String spec = mitre ? (a.shortFrame ? ART_MITRE_SHORT : ART_MITRE_HUMAN) : set[st];
+		for(String p : spec.split(" "))
+		{
+			String[] f = p.split(",");
+			putPx(px, Integer.parseInt(f[0]) + dx, Integer.parseInt(f[1]) + dy, fixed(f[2].charAt(0)));
+		}
 	}
 
 	private static void stampPauldrons(int[] px, int dragon, Anchor a)
