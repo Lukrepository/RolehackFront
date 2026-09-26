@@ -621,7 +621,7 @@ public final class RhDoll
 		if(a.shortFrame)
 			dressShort(px, bg, look, a, ts);
 		else
-			dressHuman(px, bg, look, a, ts);
+			dressHuman(px, bg, look, a, ts, px.clone());
 
 		Bitmap bmp = Bitmap.createBitmap(px, 16, 16, Bitmap.Config.ARGB_8888);
 		mCache.put(key, bmp);
@@ -629,7 +629,7 @@ public final class RhDoll
 	}
 
 	/** Gear on the human frame, which every hero body but dwarf and gnome shares. */
-	private void dressHuman(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	private void dressHuman(int[] px, int bg, Look look, Anchor a, Tileset ts, int[] tile)
 	{
 		// first, before any layer: the tile's off-hand pose gives way to a shield or
 		// a second weapon, so armour then covers the lowered arm as it would any other
@@ -648,6 +648,16 @@ public final class RhDoll
 			stampBody(px, bg, look, SHIRT, a, ts, S_SHIRT);
 		if(look.draws(SUIT))
 			stampBody(px, bg, look, SUIT, a, ts, S_SUIT);
+		// a front garment the tile itself wears -- the Apothecary's smock, a Priest's robe -- is worn
+		// over armour in the game, so its centre panel goes back over the suit
+		if(look.draws(SUIT) && look.has(CLOAK) && (look.shape(CLOAK) & (FRONT | COSTUME)) == (FRONT | COSTUME))
+			for(int y = 7; y <= 11; y++)
+				for(int x = 6; x <= 9; x++)
+				{
+					int X = x + a.torsoDx, Y = y + a.torsoDy;
+					if(X >= 0 && X < 16 && Y >= 0 && Y < 16)
+						px[Y * 16 + X] = tile[Y * 16 + X];
+				}
 		if(look.draws(CLOAK) && front)
 			stampCloakFront(px, bg, look, a, ts);
 		if(cape)
