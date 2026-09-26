@@ -73,6 +73,6 @@ It hooks into ForkFront in a few places: `NH_State` routes the Back key and sets
 ## Credits and licences
 
 - **ForkFront:** gurrhack and JodiJodington. It has no licence file in its upstream repositories; its copyright remains with its authors.
-- **The Rolehack interface:** Lucas Ruiz.
+- **The Rolehack interface:** Lucas Ruiz, who decides what goes in and playtests it. Most of the code and documentation was written by Claude, Anthropic's AI model, at Lucas's direction and to Lucas's review. Every commit Claude worked on says so in a `Co-Authored-By: Claude` line.
 - **Fonts:** SIL Open Font License 1.1. The notices are in `lib/assets/fonts/OFL.txt`.
 - **Key click:** "Keyboard_Tactile_8" by StavSounds, CC0, from Freesound. See `lib/assets/sounds/CREDITS.txt`.
