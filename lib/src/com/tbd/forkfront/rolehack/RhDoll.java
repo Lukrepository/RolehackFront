@@ -381,6 +381,11 @@ public final class RhDoll
 	// cuff on the arm beside it.  Boots: the feet (outer, inner), then the leg row above them for a
 	// tall boot, and an accent on the first pixel of each leg there.  '.' is none.
 	private static final String[] GLOVE_LOOKS = { null, "J.", "CC", "KJ", "NO" };
+	// Amulets, as the core numbers them (rh_amulet_looks[]; tools/paperdoll/amulets.py): the
+	// pendant's rows 8-10 at x7-9, torso-relative, under a gold chain at (7,7) and (9,7) -- worn
+	// over armour (Lucas, 2026-09-26: "having it more visible might make it more likely to notice
+	// that you didnt put your amulet of reflection on").  '.' leaves the body.
+	private static final String[] AMULET_LOOKS = { null, ".C.C.C.K.", ".C.CHK.K.", ".C..K..K.", ".C.CKK...", ".C.CKJKJJ", "CK.KK....", "C.KKKJ...", ".C.CKK.K.", "CKKKKK.K.", "CKKKAK.K.", "CCKKKJKKJ", "HDH.B...." };
 	private static final String[] BOOT_LOOKS = { null, "JK..", "PN..", "KL..", "JJK.", "RFF.", "JJG.", "KKC.", "KKKH", "QRQ.", "OON." };
 
 	private static Sprite shieldSprite(Look look)
@@ -641,9 +646,8 @@ public final class RhDoll
 		}
 		if(look.draws(SUIT) && (look.shape(SUIT) & DRAGON) != 0)
 			stampPauldrons(px, (look.shape(SUIT) >> 12) & 0xf, a);
-		if(look.draws(AMULET) && !covered)
-			stamp(px, bg, look.art(AMULET) == ART_AETHIOPICA ? S_AETHIOPICA : S_AMULET, a.torsoDx, a.torsoDy,
-			      false, ramp(look, AMULET, ts, false));
+		if(look.draws(AMULET))                  // over any armour (Lucas)
+			stampAmulet(px, bg, look, a, ts);
 		if(look.draws(BOOTS) && a.feetRow >= 0)
 			stampBoots(px, bg, look, a, ts);
 		if(look.draws(GLOVES))
@@ -687,9 +691,8 @@ public final class RhDoll
 			stampCloakFront(px, bg, look, a, ts);
 		if(look.draws(SUIT) && (look.shape(SUIT) & DRAGON) != 0)
 			stampPauldrons(px, (look.shape(SUIT) >> 12) & 0xf, a);
-		if(look.draws(AMULET) && !covered && !a.keeps(6, 10))
-			putPx(px, 6, 10, look.art(AMULET) == ART_AETHIOPICA ? fixed(AETHIOPICA_SHORT)
-			                                                       : ramp(look, AMULET, ts, false)[1]);
+		if(look.draws(AMULET))                  // one pixel of the pendant, under the beard, over any armour
+			putPx(px, 6, 11, amuletShortColour(look, ts));
 		if(look.draws(BOOTS))
 			stampBoots(px, bg, look, a, ts);
 		if(look.draws(GLOVES))
@@ -1032,6 +1035,44 @@ public final class RhDoll
 				px[y * 16 + x] = fixed(!prev && b.charAt(3) != '.' ? b.charAt(3) : b.charAt(2));
 			prev = leg;
 		}
+	}
+
+	/**
+	 * An amulet as its look: a gold chain on the collar and the pendant's
+	 * silhouette on the chest, over any armour.  The Eye of the Aethiopica
+	 * keeps its own art; a look the core does not name keeps the old two
+	 * tinted pixels.
+	 */
+	private void stampAmulet(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	{
+		int st = look.shape(AMULET) & 0xff;
+		if(look.art(AMULET) == ART_AETHIOPICA || st <= 0 || st >= AMULET_LOOKS.length)
+		{
+			stamp(px, bg, look.art(AMULET) == ART_AETHIOPICA ? S_AETHIOPICA : S_AMULET, a.torsoDx, a.torsoDy,
+			      false, ramp(look, AMULET, ts, false));
+			return;
+		}
+		String p = AMULET_LOOKS[st];
+		putPx(px, 7 + a.torsoDx, 7 + a.torsoDy, fixed('H'));
+		putPx(px, 9 + a.torsoDx, 7 + a.torsoDy, fixed('H'));
+		for(int i = 0; i < 9; i++)
+			if(p.charAt(i) != '.')
+				putPx(px, 7 + i % 3 + a.torsoDx, 8 + i / 3 + a.torsoDy, fixed(p.charAt(i)));
+	}
+
+	/** The short frame's one amulet pixel: the pendant's first colour. */
+	private int amuletShortColour(Look look, Tileset ts)
+	{
+		if(look.art(AMULET) == ART_AETHIOPICA)
+			return fixed(AETHIOPICA_SHORT);
+		int st = look.shape(AMULET) & 0xff;
+		if(st <= 0 || st >= AMULET_LOOKS.length)
+			return ramp(look, AMULET, ts, false)[1];
+		String p = AMULET_LOOKS[st];
+		for(int i = 0; i < p.length(); i++)
+			if(p.charAt(i) != '.')
+				return fixed(p.charAt(i));
+		return ramp(look, AMULET, ts, false)[1];
 	}
 
 	private void stampHelmet(int[] px, int bg, Look look, Anchor a, Tileset ts)
