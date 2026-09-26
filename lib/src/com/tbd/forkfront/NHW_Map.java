@@ -547,14 +547,14 @@ public class NHW_Map implements NH_Window
 			mUI.invalidateTile(mHeroLook.x, mHeroLook.y);
 	}
 
-	/** The dressed hero for this square, or null to draw the tile as it is. */
+	/** The hero for this square -- toned, and dressed -- or null to draw the tile as it is. */
 	private Bitmap dollAt(int tileX, int tileY, int glyph)
 	{
 		RhDoll.Look look = mHeroLook;
-		if(look == null || !RhPrefs.paperDoll() || look.x != tileX || look.y != tileY
-		   || look.base != glyph)
+		if(look == null || look.x != tileX || look.y != tileY || look.base != glyph)
 			return null;
-		return mDoll.compose(look, mTileset);
+		// The skin tone is the hero's look, so it stays with the doll switched off.
+		return mDoll.compose(look, mTileset, RhPrefs.paperDoll());
 	}
 
 	// ____________________________________________________________________________________
