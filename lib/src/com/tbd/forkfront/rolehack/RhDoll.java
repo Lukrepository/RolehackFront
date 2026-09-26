@@ -386,6 +386,19 @@ public final class RhDoll
 	// over armour (Lucas, 2026-09-26: "having it more visible might make it more likely to notice
 	// that you didnt put your amulet of reflection on").  '.' leaves the body.
 	private static final String[] AMULET_LOOKS = { null, ".C.C.C.K.", ".C.CHK.K.", ".C..K..K.", ".C.CKK...", ".C.CKJKJJ", "CK.KK....", "C.KKKJ...", ".C.CKK.K.", "CKKKKK.K.", "CKKKAK.K.", "CCKKKJKKJ", "HDH.B...." };
+	// Eyewear, as the core numbers it (rh_eyewear_looks[]; tools/paperdoll/eyewear.py): on the human
+	// frame relative to the head anchor, on the short frame in tile coordinates.
+	private static final Sprite[] EYEWEAR_HUMAN = { null, new Sprite(4, 5, "PNBPNB"), new Sprite(4, 5, "RQQQQR", 5, 10, "RR", 6, 11, "R"), new Sprite(3, 5, "OOOOOO", 4, 5, "OPPPPOP", 5, 10, "P") };
+	private static final Sprite[] EYEWEAR_SHORT = { null, new Sprite(7, 4, "PNPNB"), new Sprite(7, 4, "RQQQR", 8, 9, "R"), new Sprite(6, 4, "OOOOO", 7, 4, "OPPPP") };
+	/** Eyewear as its look: the Eyes' own art, else lenses, blindfold or towel, else the tinted band. */
+	private static Sprite eyewearSprite(Look look, boolean shortFrame)
+	{
+		if(look.art(EYEWEAR) == ART_EYES)
+			return shortFrame ? S_EYES_SHORT : S_EYES;
+		int st = look.shape(EYEWEAR) & 0xff;
+		Sprite[] set = shortFrame ? EYEWEAR_SHORT : EYEWEAR_HUMAN;
+		return st > 0 && st < set.length ? set[st] : (shortFrame ? S_EYEWEAR_SHORT : S_EYEWEAR);
+	}
 	private static final String[] BOOT_LOOKS = { null, "JK..", "PN..", "KL..", "JJK.", "RFF.", "JJG.", "KKC.", "KKKH", "QRQ.", "OON." };
 
 	private static Sprite shieldSprite(Look look)
@@ -656,7 +669,7 @@ public final class RhDoll
 		if(look.draws(HELMET))
 			stampHelmet(px, bg, look, a, ts);
 		if(look.draws(EYEWEAR))
-			stamp(px, bg, look.art(EYEWEAR) == ART_EYES ? S_EYES : S_EYEWEAR, a.headDx, a.headDy, false,
+			stamp(px, bg, eyewearSprite(look, false), a.headDx, a.headDy, false,
 			      ramp(look, EYEWEAR, ts, false));
 		if(look.draws(SHIELD))
 			stamp(px, bg, shieldSprite(look), a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
@@ -700,7 +713,7 @@ public final class RhDoll
 		if(look.draws(HELMET))
 			stampHelmet(px, bg, look, a, ts);
 		if(look.draws(EYEWEAR))
-			stamp(px, bg, look.art(EYEWEAR) == ART_EYES ? S_EYES_SHORT : S_EYEWEAR_SHORT, 0, 0, false,
+			stamp(px, bg, eyewearSprite(look, true), 0, 0, false,
 			      ramp(look, EYEWEAR, ts, false));
 		if(look.draws(SHIELD))
 			stamp(px, bg, shieldSprite(look), a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
