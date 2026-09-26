@@ -963,9 +963,12 @@ public final class RhDoll
 			px[(top + 2) * 16 + lx] = fixed(st.glint);
 		if(st.hood != null)             // the hood, up behind the head
 		{
+			// On dwarves and gnomes it hugs the head: their heads start on row 4, and
+			// a hood from row 2 floated over them (Lucas picked two rows lower).
+			int hoodY = a.shortFrame ? 4 : hy, hoodLen = a.shortFrame ? 3 : 5;
 			for(int x = hx0 + 1; x < hx1; x++)
-				capePx(px, bg, x, hy, fixed(2 * x < hx0 + hx1 ? st.hood[0] : st.hood[1]), false);
-			for(int y = hy + 1; y <= hy + 5; y++)
+				capePx(px, bg, x, hoodY, fixed(2 * x < hx0 + hx1 ? st.hood[0] : st.hood[1]), false);
+			for(int y = hoodY + 1; y <= hoodY + hoodLen; y++)
 			{
 				capePx(px, bg, hx0, y, fixed(st.hood[0]), false);
 				capePx(px, bg, hx1, y, fixed(st.hood[1]), true);
