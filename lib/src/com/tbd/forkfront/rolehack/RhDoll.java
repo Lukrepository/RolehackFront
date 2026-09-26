@@ -250,6 +250,7 @@ public final class RhDoll
 		int headDx, headDy, torsoDx, torsoDy;
 		int mainX = 4, mainY = 10, offX = 11, offY = 10;
 		int[] hands;                 // x,y pairs; null = the two grips
+		int[] cuffs;                 // x,y beside each hand, for a glove's cuff; null = above it
 		int feetRow = 13;            // -1: the costume hides the feet
 		int[] feetCols = { 5, 6, 9, 10 };
 		boolean shortFrame;          // dwarf and gnome: their own short body (dressShort)
@@ -260,6 +261,7 @@ public final class RhDoll
 		Anchor torso(int dx, int dy) { torsoDx = dx; torsoDy = dy; return this; }
 		Anchor grips(int mx, int my, int ox, int oy) { mainX = mx; mainY = my; offX = ox; offY = oy; return this; }
 		Anchor hands(int... xy) { hands = xy; return this; }
+		Anchor cuffs(int... xy) { cuffs = xy; return this; }
 		Anchor feet(int row, int... cols) { feetRow = row; feetCols = cols; return this; }
 		Anchor robe() { feetRow = -1; return this; }
 		Anchor shortFrame(int... keepXY) { shortFrame = true; keep = keepXY; return this; }
@@ -302,7 +304,7 @@ public final class RhDoll
 		// frame, holding a flask up to the light in the off hand.  The flask's neck (12,3)
 		// survives a helmet; gloves go on the main hand and either off-hand place; a
 		// shield or a second weapon brings the arm down to the usual grip (11,10).
-		pair(702, new Anchor().hands(4, 10, 12, 5, 11, 10).keep(12, 3)
+		pair(702, new Anchor().hands(4, 10, 12, 5, 11, 10).cuffs(4, 9, 12, 6, 11, 9).keep(12, 3)
 		                      .offPose(11, 7, '~', 12, 6, '~', 12, 5, '~', 12, 4, '~', 13, 4, '~',
 		                               12, 3, '~', 13, 5, '~', 11, 8, 'O', 11, 9, 'L', 11, 10, 'L'));
 		pair(532, new Anchor());                                                                       // human (showrace)
@@ -374,6 +376,13 @@ public final class RhDoll
 		new Sprite(-3, 0, "BB", -2, -1, "BKKBA", -1, -1, "BKJBA", 0, -1, "BJJBA", 1, 0, "BBA"),   // large round shield
 		new Sprite(-2, -1, "NNOA", -1, -1, "NNZA", 0, -1, "NZOA", 1, 0, "OA"),   // polished silver shield
 	};
+	// Gloves and boots, as the core numbers them (rh_glove_looks[], rh_boot_looks[]), drawn by
+	// their look (tools/paperdoll/gloves_boots.py; Lucas, 2026-09-26).  Gloves: the hand, then the
+	// cuff on the arm beside it.  Boots: the feet (outer, inner), then the leg row above them for a
+	// tall boot, and an accent on the first pixel of each leg there.  '.' is none.
+	private static final String[] GLOVE_LOOKS = { null, "J.", "CC", "KJ", "NO" };
+	private static final String[] BOOT_LOOKS = { null, "JK..", "PN..", "KL..", "JJK.", "RFF.", "JJG.", "KKC.", "KKKH", "QRQ.", "OON." };
+
 	private static Sprite shieldSprite(Look look)
 	{
 		int st = look.shape(SHIELD) & 0xff;
@@ -636,18 +645,10 @@ public final class RhDoll
 			stamp(px, bg, look.art(AMULET) == ART_AETHIOPICA ? S_AETHIOPICA : S_AMULET, a.torsoDx, a.torsoDy,
 			      false, ramp(look, AMULET, ts, false));
 		if(look.draws(BOOTS) && a.feetRow >= 0)
-		{
-			int c = ramp(look, BOOTS, ts, false)[1];
-			for(int x : a.feetCols)
-				recolour(px, bg, x, a.feetRow, c);
-		}
+			stampBoots(px, bg, look, a, ts);
 		if(look.draws(GLOVES))
-		{
-			int c = ramp(look, GLOVES, ts, false)[1];
-			int[] h = a.hands != null ? a.hands : new int[] { a.mainX, a.mainY, a.offX, a.offY };
-			for(int i = 0; i + 1 < h.length; i += 2)
-				recolour(px, bg, h[i], h[i + 1], c);
-		}
+			stampGloves(px, bg, look, a, ts,
+			            a.hands != null ? a.hands : new int[] { a.mainX, a.mainY, a.offX, a.offY });
 		if(look.draws(HELMET))
 			stampHelmet(px, bg, look, a, ts);
 		if(look.draws(EYEWEAR))
@@ -690,17 +691,9 @@ public final class RhDoll
 			putPx(px, 6, 10, look.art(AMULET) == ART_AETHIOPICA ? fixed(AETHIOPICA_SHORT)
 			                                                       : ramp(look, AMULET, ts, false)[1]);
 		if(look.draws(BOOTS))
-		{
-			int c = ramp(look, BOOTS, ts, false)[1];
-			for(int x : a.feetCols)
-				recolour(px, bg, x, a.feetRow, c);
-		}
+			stampBoots(px, bg, look, a, ts);
 		if(look.draws(GLOVES))
-		{
-			int c = ramp(look, GLOVES, ts, false)[1];
-			recolour(px, bg, a.mainX, a.mainY, c);
-			recolour(px, bg, a.offX, a.offY, c);
-		}
+			stampGloves(px, bg, look, a, ts, new int[] { a.mainX, a.mainY, a.offX, a.offY });
 		if(look.draws(HELMET))
 			stampHelmet(px, bg, look, a, ts);
 		if(look.draws(EYEWEAR))
@@ -990,6 +983,57 @@ public final class RhDoll
 	 * pieces), then draw the style.  An unknown look (another tileset) falls
 	 * back to the tinted dome.
 	 */
+	/**
+	 * Gloves as their look: its hand colour on each hand, its cuff on the arm
+	 * beside it (the anchor's cuffs, else the pixel above the hand).  A look the
+	 * core does not name keeps the old rule: the tile's own colour on the hands.
+	 */
+	private void stampGloves(int[] px, int bg, Look look, Anchor a, Tileset ts, int[] h)
+	{
+		int st = look.shape(GLOVES) & 0xff;
+		String g = st > 0 && st < GLOVE_LOOKS.length ? GLOVE_LOOKS[st] : null;
+		int hand = g != null ? fixed(g.charAt(0)) : ramp(look, GLOVES, ts, false)[1];
+		for(int i = 0; i + 1 < h.length; i += 2)
+		{
+			recolour(px, bg, h[i], h[i + 1], hand);
+			if(g == null || g.charAt(1) == '.')
+				continue;
+			boolean own = a.cuffs != null && i + 1 < a.cuffs.length;
+			recolour(px, bg, own ? a.cuffs[i] : h[i], own ? a.cuffs[i + 1] : h[i + 1] - 1, fixed(g.charAt(1)));
+		}
+	}
+
+	/**
+	 * Boots as their look: each foot's first pixel the outer colour, the rest
+	 * the inner; a tall boot also takes the leg row just above the feet, with
+	 * its accent (a buckle) on the first pixel of each leg there.  A look the
+	 * core does not name keeps the old rule: the tile's own colour on the feet.
+	 */
+	private void stampBoots(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	{
+		int st = look.shape(BOOTS) & 0xff;
+		String b = st > 0 && st < BOOT_LOOKS.length ? BOOT_LOOKS[st] : null;
+		int tint = b == null ? ramp(look, BOOTS, ts, false)[1] : 0;
+		for(int i = 0; i < a.feetCols.length; i++)
+		{
+			boolean first = i == 0 || a.feetCols[i] != a.feetCols[i - 1] + 1;
+			recolour(px, bg, a.feetCols[i], a.feetRow, b == null ? tint : fixed(b.charAt(first ? 0 : 1)));
+		}
+		if(b == null || b.charAt(2) == '.' || a.feetRow < 1)
+			return;
+		int y = a.feetRow - 1;
+		int x0 = a.shortFrame ? 3 : 4 + a.torsoDx, x1 = a.shortFrame ? 9 : 11 + a.torsoDx;
+		boolean prev = false;
+		for(int x = Math.max(0, x0); x <= Math.min(15, x1); x++)
+		{
+			int p = px[y * 16 + x];
+			boolean leg = p != bg && (p & 0xffffff) != 0;
+			if(leg)
+				px[y * 16 + x] = fixed(!prev && b.charAt(3) != '.' ? b.charAt(3) : b.charAt(2));
+			prev = leg;
+		}
+	}
+
 	private void stampHelmet(int[] px, int bg, Look look, Anchor a, Tileset ts)
 	{
 		boolean mitre = look.art(HELMET) == ART_MITRE;
