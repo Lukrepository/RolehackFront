@@ -940,7 +940,11 @@ public class NH_State
 		@Override
 		public void hereContext(int flags, byte[] monsterName)
 		{
-			mRolehackStatus.setHere(flags, monsterName, mDecoder);
+			// The core also sends this when it waits for a command after a move
+			// that made no status pass (travel, run, a Fast hero's extra move), and
+			// no redrawStatus follows then, so the context is redrawn here.
+			if(mRolehackStatus.setHere(flags, monsterName, mDecoder) && mRolehackUI != null)
+				mRolehackUI.hereUpdated(mRolehackStatus);
 		}
 
 		@Override

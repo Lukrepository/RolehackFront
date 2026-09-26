@@ -1367,6 +1367,17 @@ public class RhOverlay extends FrameLayout
 		recomputeContext();
 	}
 
+	/**
+	 * What is underfoot or beside the hero changed without a status pass -- after
+	 * travel, a run, or a Fast hero's extra move, none of which changes a status
+	 * field.  Only the pad's centre cell and the context strip read it.
+	 */
+	public void hereUpdated(RhStatus status)
+	{
+		mStatus = status;
+		recomputeContext();
+	}
+
 	// ____________________________________________________________________________________
 	// The context strip, rewritten every turn from what the core reports.
 

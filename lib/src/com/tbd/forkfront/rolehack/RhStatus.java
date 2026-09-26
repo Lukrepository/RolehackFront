@@ -95,14 +95,17 @@ public final class RhStatus
 	private int mHereFlags;
 	private String mAdjacentMonster = "";
 
-	public void setHere(int flags, byte[] monsterName, ByteDecoder decoder)
+	/** @return whether the flags or the monster's name changed. */
+	public boolean setHere(int flags, byte[] monsterName, ByteDecoder decoder)
 	{
-		mHereFlags = flags;
 		String n = decode(monsterName, decoder).trim();
 		// mon_nam() gives "the jackal"; a 104dp face wants "jackal".
 		if(n.startsWith("the "))
 			n = n.substring(4);
+		boolean changed = flags != mHereFlags || !n.equals(mAdjacentMonster);
+		mHereFlags = flags;
 		mAdjacentMonster = n;
+		return changed;
 	}
 
 	public boolean here(int mask)
