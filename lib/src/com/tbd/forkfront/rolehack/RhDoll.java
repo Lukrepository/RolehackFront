@@ -43,6 +43,12 @@ import java.util.Map;
  *  - Any other item's colour is the commonest colour in its own floor tile.
  *  - Gloves and boots recolour the base's hand and foot pixels: at 16x16 they
  *    are only colour.
+ *  - Cloaks have art of their own (tools/paperdoll/cloaks.py): the core sends
+ *    each worn cloak's style by the words the player sees, so a shuffled
+ *    magic cloak is drawn as its appearance, never its identity.  Capes keep
+ *    a signature -- the hooded cloak's hood up behind the head, the opera
+ *    cloak's tall collar, the ornamental cope's trim, the tattered cape's
+ *    rags -- and the robe, apron and mummy wrapping are drawn as themselves.
  *  - Draw order is the occlusion rule.  A cloak is a cape behind the body
  *    (Lucas: it was covering the armour): it paints only background down
  *    both sides and flares at the hem -- plus the drop shadow on the right --
@@ -118,6 +124,36 @@ public final class RhDoll
 		"4,6,H 5,6,H 3,7,H 4,7,H 5,7,K 3,8,H 3,9,G 3,11,G",                       // yellow: acid
 	};
 	private static final String DARKER_FROM = "NOWHCKBG", DARKER_TO = "OWVCKJEF";
+
+	// Cloak styles, as the core numbers them (rh_doll_cloak()).
+	private static final int C_PALL = 1, C_MANTELET = 2, C_HOOD = 3, C_SLICK = 4, C_LEATHER = 5,
+		C_TATTERED = 6, C_OPERA = 7, C_COPE = 8, C_CLOTH = 9, C_ROBE = 10, C_APRON = 11, C_WRAPPING = 12;
+
+	/** A cape's look: left strip, right strip, hem, and its signature. */
+	private static final class CapeStyle
+	{
+		final char l, r, hem;
+		char fleck, trim, glint, clasp;
+		char[] rough, check, hood, collar;
+		boolean ragged;
+
+		CapeStyle(char l, char r, char hem) { this.l = l; this.r = r; this.hem = hem; }
+	}
+
+	private static final CapeStyle[] CAPES = new CapeStyle[10];
+	static
+	{
+		CapeStyle c;
+		c = CAPES[C_PALL] = new CapeStyle('O', 'F', 'G');     c.fleck = 'G';
+		c = CAPES[C_MANTELET] = new CapeStyle('C', 'K', 'J'); c.rough = new char[] { 'C', 'K' };
+		c = CAPES[C_HOOD] = new CapeStyle('B', 'P', 'P');     c.hood = new char[] { 'B', 'P' };
+		c = CAPES[C_SLICK] = new CapeStyle('J', 'A', 'J');    c.glint = 'N';
+		CAPES[C_LEATHER] = new CapeStyle('K', 'J', 'J');
+		c = CAPES[C_TATTERED] = new CapeStyle('O', 'P', 'O'); c.ragged = true;
+		c = CAPES[C_OPERA] = new CapeStyle('N', 'O', 'O');    c.collar = new char[] { 'N', 'O' }; c.clasp = 'D';
+		c = CAPES[C_COPE] = new CapeStyle('A', 'A', 'P');     c.trim = 'P'; c.clasp = 'H';
+		c = CAPES[C_CLOTH] = new CapeStyle('P', 'P', 'B');    c.check = new char[] { 'P', 'B' };
+	}
 
 	private static final int SHORT_BLADE = 1, SWORD = 2, GREAT_SWORD = 3, AXE = 4,
 		PICK = 5, BLUNT = 6, STAFF = 7, POLE = 8, LAUNCHER = 9, MISSILE = 10,
@@ -303,6 +339,15 @@ public final class RhDoll
 	private static final Sprite S_EYEWEAR_SHORT = new Sprite(7, 4, "dmmmd");
 	private static final Sprite S_FRONT_SHORT = new Sprite(
 		9, 3, "lmmmmmd", 10, 3, "lAmmmAd", 11, 5, "mmm", 12, 4, "lmmmd");
+	// Front garments, on the human frame (torso-relative) and the short frame.
+	private static final Sprite S_ROBE = new Sprite(
+		7, 5, "CCJKKK", 8, 4, "CCCJKKKK", 9, 4, "CACJKKAK", 10, 5, "CCJKKK", 11, 4, "CCCJKKKK", 12, 4, "CCCJKKKK");
+	private static final Sprite S_ROBE_SHORT = new Sprite(
+		9, 3, "CCJKKKK", 10, 3, "CAJKKAK", 11, 5, "CJK", 12, 4, "CCJKK");
+	private static final Sprite S_APRON = new Sprite(
+		7, 6, "F..R", 8, 6, "FFFR", 9, 6, "FFFR", 10, 6, "FFFR", 11, 6, "FFFR", 12, 6, "FFFR");
+	private static final Sprite S_APRON_SHORT = new Sprite(9, 5, "FFR", 10, 5, "FFR", 11, 5, "FFR", 12, 5, "FFR");
+
 	/** A buckler on the arm, relative to the off-hand grip. */
 	private static final Sprite S_SHIELD_SHORT = new Sprite(-2, 0, "lmA", -1, 0, "WdA", 0, 0, "mdA");
 	/** The short torso: rows 9-11.  The arm separators at (4,10), (8,10) stay black. */
@@ -434,15 +479,20 @@ public final class RhDoll
 		boolean cape = look.draws(CLOAK) && !front;
 		boolean covered = look.has(SUIT) || front;
 		if(cape)
-			stampCape(px, bg, a, ramp(look, CLOAK, ts, true));
+			stampCloakBehind(px, bg, look, a, ts);
 		if(look.draws(SHIRT) && !covered)
 			stampBody(px, bg, look, SHIRT, a, ts, S_SHIRT);
 		if(look.draws(SUIT))
 			stampBody(px, bg, look, SUIT, a, ts, S_SUIT);
 		if(look.draws(CLOAK) && front)
-			stamp(px, bg, S_CLOAK, a.torsoDx, a.torsoDy, false, ramp(look, CLOAK, ts, true));
+			stampCloakFront(px, bg, look, a, ts);
 		if(cape)
-			putPx(px, 7 + a.torsoDx, 7 + a.torsoDy, fixed('H'));   // the clasp
+		{
+			CapeStyle st = capeStyle(look);
+			char clasp = st == null ? 'H' : st.clasp;
+			if(clasp != 0)
+				putPx(px, 7 + a.torsoDx, 7 + a.torsoDy, fixed(clasp));
+		}
 		if(look.draws(SUIT) && (look.shape(SUIT) & DRAGON) != 0)
 			stampPauldrons(px, (look.shape(SUIT) >> 12) & 0xf, a);
 		if(look.draws(AMULET) && !covered)
@@ -487,13 +537,13 @@ public final class RhDoll
 		boolean cape = look.draws(CLOAK) && !front;
 		boolean covered = look.has(SUIT) || front;
 		if(cape)
-			stampCapeShort(px, bg, ramp(look, CLOAK, ts, true));
+			stampCloakBehind(px, bg, look, a, ts);
 		if(look.draws(SHIRT) && !covered)
 			stampBodyShort(px, bg, look, SHIRT, a, ts, false);
 		if(look.draws(SUIT))
 			stampBodyShort(px, bg, look, SUIT, a, ts, true);
 		if(look.draws(CLOAK) && front)
-			stampKeep(px, S_FRONT_SHORT, a, ramp(look, CLOAK, ts, true));
+			stampCloakFront(px, bg, look, a, ts);
 		if(look.draws(SUIT) && (look.shape(SUIT) & DRAGON) != 0)
 			stampPauldrons(px, (look.shape(SUIT) >> 12) & 0xf, a);
 		if(look.draws(AMULET) && !covered && !a.keeps(6, 10))
@@ -843,6 +893,150 @@ public final class RhDoll
 	 * paints only background -- and, on the right, the black drop shadow --
 	 * so the hero's own arms, hair and anything held stay in front of it.
 	 */
+	private static CapeStyle capeStyle(Look look)
+	{
+		int st = look.shape(CLOAK) & 0xff;
+		return st > 0 && st < CAPES.length ? CAPES[st] : null;
+	}
+
+	/**
+	 * A cape behind the body, in its style: strips down both sides (x3 and x12
+	 * on the human frame, x2 and x10 on the short one) from the shoulders to
+	 * the feet, a hem, and the style's signature.  Paints only background,
+	 * and on the right the drop shadow.  An unknown style (another tileset)
+	 * falls back to plain strips in the tile's colour.
+	 */
+	private void stampCloakBehind(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	{
+		CapeStyle st = capeStyle(look);
+		if(st == null)
+		{
+			if(a.shortFrame)
+				stampCapeShort(px, bg, ramp(look, CLOAK, ts, true));
+			else
+				stampCape(px, bg, a, ramp(look, CLOAK, ts, true));
+			return;
+		}
+		int lx, rx, top, bottom, hy, hx0, hx1;
+		if(a.shortFrame)
+		{
+			lx = 2; rx = 10; top = 9; bottom = 13;
+			hy = 2; hx0 = 3; hx1 = 9;
+		}
+		else
+		{
+			lx = 3 + a.torsoDx; rx = 12 + a.torsoDx; top = 7 + a.torsoDy;
+			bottom = a.feetRow >= 0 ? a.feetRow : 13 + a.torsoDy;
+			hy = 1 + a.headDy; hx0 = 5 + a.headDx; hx1 = 10 + a.headDx;
+		}
+		for(int y = top; y <= bottom; y++)
+		{
+			char cl = st.l, cr = st.r;
+			if(st.rough != null)
+				cl = st.rough[y % 2];
+			if(st.check != null)
+			{
+				cl = st.check[y % 2];
+				cr = st.check[(y + 1) % 2];
+			}
+			if(st.fleck != 0 && y % 3 == 0)
+				cl = st.fleck;
+			if(st.ragged && y == bottom && y % 2 == 1)
+				continue;
+			capePx(px, bg, lx, y, fixed(cl), false);
+			capePx(px, bg, rx, y, fixed(cr), true);
+		}
+		for(int y = bottom - 1; y <= bottom; y++)
+		{
+			if(st.ragged && y == bottom)
+				continue;
+			capePx(px, bg, lx - 1, y, fixed(st.hem), false);
+			capePx(px, bg, rx + 1, y, fixed(st.r == 'A' ? st.l : st.hem), true);
+		}
+		if(st.trim != 0)
+			for(int y = top; y <= bottom; y++)
+			{
+				capePx(px, bg, lx - 1, y, fixed(st.trim), false);
+				capePx(px, bg, rx + 1, y, fixed(st.trim), true);
+			}
+		if(st.glint != 0 && top + 2 < 16 && lx >= 0 && px[(top + 2) * 16 + lx] == fixed(st.l))
+			px[(top + 2) * 16 + lx] = fixed(st.glint);
+		if(st.hood != null)             // the hood, up behind the head
+		{
+			for(int x = hx0 + 1; x < hx1; x++)
+				capePx(px, bg, x, hy, fixed(2 * x < hx0 + hx1 ? st.hood[0] : st.hood[1]), false);
+			for(int y = hy + 1; y <= hy + 5; y++)
+			{
+				capePx(px, bg, hx0, y, fixed(st.hood[0]), false);
+				capePx(px, bg, hx1, y, fixed(st.hood[1]), true);
+			}
+		}
+		if(st.collar != null)           // a tall collar, flaring out behind the head
+		{
+			int cy = hy + 3;
+			capePx(px, bg, hx0 - 1, cy, fixed(st.collar[0]), false);
+			capePx(px, bg, hx0, cy + 1, fixed(st.collar[0]), false);
+			capePx(px, bg, hx0, cy + 2, fixed(st.collar[0]), false);
+			capePx(px, bg, hx1 + 1, cy, fixed(st.collar[1]), true);
+			capePx(px, bg, hx1, cy + 1, fixed(st.collar[1]), true);
+			capePx(px, bg, hx1, cy + 2, fixed(st.collar[1]), true);
+		}
+	}
+
+	/**
+	 * A garment worn in front, drawn as itself: a robe with its seam, an apron
+	 * with its straps and bib, or bandages round the body, arms and legs.
+	 * Anything else marked front (another tileset) keeps the placeholder.
+	 */
+	private void stampCloakFront(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	{
+		int st = look.shape(CLOAK) & 0xff;
+		int dx = a.shortFrame ? 0 : a.torsoDx, dy = a.shortFrame ? 0 : a.torsoDy;
+		int bottom = a.feetRow >= 0 ? a.feetRow - 1 : 12 + dy;
+		if(st == C_WRAPPING)
+		{
+			int top = a.shortFrame ? 9 : 7 + dy;
+			for(int y = top; y <= bottom && y < 16; y++)
+				for(int x = 0; x < 16; x++)
+				{
+					if(a.keeps(x, y) || (!a.shortFrame && (x < 3 + dx || x > 12 + dx)))
+						continue;
+					int p = px[y * 16 + x];
+					if(p == bg || (p & 0xffffff) == 0)
+						continue;
+					px[y * 16 + x] = fixed(y % 2 == 1 ? 'N' : 'O');
+				}
+			int[] spots = a.shortFrame ? new int[] { 5, 10, 7, 12 } : new int[] { 6 + dx, 9 + dy, 9 + dx, 11 + dy };
+			for(int i = 0; i < spots.length; i += 2)
+			{
+				int x = spots[i], y = spots[i + 1];
+				if(x >= 0 && x < 16 && y >= 0 && y < 16
+				   && (px[y * 16 + x] == fixed('N') || px[y * 16 + x] == fixed('O')))
+					px[y * 16 + x] = fixed('D');
+			}
+			return;
+		}
+		Sprite s = st == C_ROBE ? (a.shortFrame ? S_ROBE_SHORT : S_ROBE)
+		         : st == C_APRON ? (a.shortFrame ? S_APRON_SHORT : S_APRON) : null;
+		if(s == null)
+		{
+			if(a.shortFrame)
+				stampKeep(px, S_FRONT_SHORT, a, ramp(look, CLOAK, ts, true));
+			else
+				stamp(px, bg, S_CLOAK, a.torsoDx, a.torsoDy, false, ramp(look, CLOAK, ts, true));
+			return;
+		}
+		for(int r = 0; r < s.rows.length; r++)
+			for(int i = 0; i < s.rows[r].length(); i++)
+			{
+				char c = s.rows[r].charAt(i);
+				int x = s.x0s[r] + i + dx, y = s.ys[r] + dy;
+				if(c == '.' || a.keeps(x, y) || (y > bottom && a.feetRow >= 0))
+					continue;
+				putPx(px, x, y, fixed(c));
+			}
+	}
+
 	private static void stampCape(int[] px, int bg, Anchor a, int[] ramp)
 	{
 		int bottom = a.feetRow >= 0 ? a.feetRow : 13 + a.torsoDy;
