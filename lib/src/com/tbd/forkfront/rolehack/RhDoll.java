@@ -48,6 +48,10 @@ import java.util.Map;
  *    both sides and flares at the hem -- plus the drop shadow on the right --
  *    with a clasp at the neck in front.  Robe, apron and mummy wrapping,
  *    which the core marks FRONT, are worn in front and cover the suit.
+ *  - Dwarf and gnome have a short frame of their own (Lucas: they came out
+ *    mis-sized) -- face row 7, torso rows 9-11, the beard kept over the chest
+ *    -- so they get short layers rather than human ones moved (dressShort;
+ *    tools/paperdoll/short.py).
  *  - Costume: an item the hero's own role tile already draws (the core marks
  *    it, and only once the player knows the item's type) is left to the
  *    tile: the Archeologist's fedora, the Knight's ring mail, the
@@ -170,6 +174,8 @@ public final class RhDoll
 		int[] hands;                 // x,y pairs; null = the two grips
 		int feetRow = 13;            // -1: the costume hides the feet
 		int[] feetCols = { 5, 6, 9, 10 };
+		boolean shortFrame;          // dwarf and gnome: their own short body (dressShort)
+		int[] keep = {};             // x,y pairs the layers leave alone: a beard
 
 		Anchor head(int dx, int dy)  { headDx = dx; headDy = dy; return this; }
 		Anchor torso(int dx, int dy) { torsoDx = dx; torsoDy = dy; return this; }
@@ -177,6 +183,14 @@ public final class RhDoll
 		Anchor hands(int... xy) { hands = xy; return this; }
 		Anchor feet(int row, int... cols) { feetRow = row; feetCols = cols; return this; }
 		Anchor robe() { feetRow = -1; return this; }
+		Anchor shortFrame(int... keepXY) { shortFrame = true; keep = keepXY; return this; }
+		boolean keeps(int x, int y)
+		{
+			for(int i = 0; i + 1 < keep.length; i += 2)
+				if(keep[i] == x && keep[i + 1] == y)
+					return true;
+			return false;
+		}
 	}
 
 	private static final Anchor DEFAULT = new Anchor();
@@ -203,9 +217,14 @@ public final class RhDoll
 		pair(702, new Anchor().head(-1, -1).grips(4, 10, 9, 10).hands(3, 9, 9, 10).feet(13, 5, 6, 8, 9));
 		pair(532, new Anchor());                                                                       // human (showrace)
 		pair(540, new Anchor());                                                                       // elf
-		Anchor small = new Anchor().head(-1, 3).torso(-1, 1).grips(4, 11, 8, 11).feet(13, 4, 5, 7, 8);
-		pair(92, small);                                                                               // dwarf
-		pair(338, small);                                                                              // gnome
+		// dwarf and gnome: a short frame of their own (dressShort) -- face on row 7, torso
+		// rows 9-11, hands (4,11) and (8,11) -- with the beard over the chest kept.  Dwarf
+		// women are bearded too; gnome women are not.
+		Anchor bearded = new Anchor().grips(4, 11, 8, 11).feet(13, 4, 5, 7, 8)
+		                             .shortFrame(5, 9, 6, 9, 7, 9, 6, 10);
+		pair(92, bearded);                                                                             // dwarf
+		ANCHORS.put(338, bearded);                                                                     // gnome, male
+		ANCHORS.put(339, new Anchor().grips(4, 11, 8, 11).feet(13, 4, 5, 7, 8).shortFrame());         // gnome, female
 		pair(148, new Anchor().head(-2, 1).torso(-2, 0).grips(2, 10, 9, 10).feet(13, 2, 3, 4, 6, 7, 8)); // orc
 	}
 
@@ -276,6 +295,19 @@ public final class RhDoll
 	private static final Sprite S_MISSILE = new Sprite(-2, 0, "l", -1, 0, "m");
 	private static final Sprite S_WHIP = new Sprite(1, -1, "J", 2, -2, "J", 3, -2, "J", 3, -1, "J");
 	private static final Sprite S_HORN = new Sprite(-5, 0, "N", -4, 0, "Z", -3, 0, "N", -2, 0, "Z", -1, 0, "N");
+	// The short frame's own sprites, in tile coordinates (tools/paperdoll/short.py).
+	// The helmet clears the tile's hat and cheek pieces, then a smaller dome.
+	private static final Sprite S_HELMET_SHORT = new Sprite(
+		0, 2, "~~~~~~~~~", 1, 2, "~~~~~~~~~", 2, 2, "~~~~~~~~~", 3, 2, "~~~~~~~~~", 4, 2, "~~~~~~~~~",
+		5, 2, "~~~lmA~~~", 6, 2, "~~lmmdA~~", 7, 4, "~...~");
+	private static final Sprite S_EYEWEAR_SHORT = new Sprite(7, 4, "dmmmd");
+	private static final Sprite S_FRONT_SHORT = new Sprite(
+		9, 3, "lmmmmmd", 10, 3, "lAmmmAd", 11, 5, "mmm", 12, 4, "lmmmd");
+	/** A buckler on the arm, relative to the off-hand grip. */
+	private static final Sprite S_SHIELD_SHORT = new Sprite(-2, 0, "lmA", -1, 0, "WdA", 0, 0, "mdA");
+	/** The short torso: rows 9-11.  The arm separators at (4,10), (8,10) stay black. */
+	private static final int[] SHORT_Y = { 9, 10, 11 }, SHORT_X0 = { 3, 3, 5 }, SHORT_X1 = { 9, 9, 7 };
+
 	/** Anything that is not a weapon: a thing held up in the hand. */
 	private static final Sprite S_HELD = new Sprite(-2, -1, "lm", -1, -1, "md");
 
@@ -385,6 +417,19 @@ public final class RhDoll
 			return bmp;
 		}
 
+		if(a.shortFrame)
+			dressShort(px, bg, look, a, ts);
+		else
+			dressHuman(px, bg, look, a, ts);
+
+		Bitmap bmp = Bitmap.createBitmap(px, 16, 16, Bitmap.Config.ARGB_8888);
+		mCache.put(key, bmp);
+		return bmp;
+	}
+
+	/** Gear on the human frame, which every hero body but dwarf and gnome shares. */
+	private void dressHuman(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	{
 		boolean front = look.has(CLOAK) && (look.shape(CLOAK) & FRONT) != 0;
 		boolean cape = look.draws(CLOAK) && !front;
 		boolean covered = look.has(SUIT) || front;
@@ -427,10 +472,220 @@ public final class RhDoll
 		if(look.has(OFFHAND))
 			stamp(px, bg, weaponSprite(look.shape(OFFHAND)), a.offX, a.offY, true,
 			      ramp(look, OFFHAND, ts, false));
+	}
 
-		Bitmap bmp = Bitmap.createBitmap(px, 16, 16, Bitmap.Config.ARGB_8888);
-		mCache.put(key, bmp);
-		return bmp;
+	/**
+	 * Gear on the short frame (dwarf, gnome): the same items, drawn to that body
+	 * -- a short suit mask around the beard, a helmet that replaces the tile's
+	 * own hat, a cape at x2 and x10 with no clasp (the beard covers the neck),
+	 * pauldrons on the lower shoulders, a buckler, and weapons at two-thirds
+	 * height, so a longsword is no taller than a dwarf.
+	 */
+	private void dressShort(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	{
+		boolean front = look.has(CLOAK) && (look.shape(CLOAK) & FRONT) != 0;
+		boolean cape = look.draws(CLOAK) && !front;
+		boolean covered = look.has(SUIT) || front;
+		if(cape)
+			stampCapeShort(px, bg, ramp(look, CLOAK, ts, true));
+		if(look.draws(SHIRT) && !covered)
+			stampBodyShort(px, bg, look, SHIRT, a, ts, false);
+		if(look.draws(SUIT))
+			stampBodyShort(px, bg, look, SUIT, a, ts, true);
+		if(look.draws(CLOAK) && front)
+			stampKeep(px, S_FRONT_SHORT, a, ramp(look, CLOAK, ts, true));
+		if(look.draws(SUIT) && (look.shape(SUIT) & DRAGON) != 0)
+			stampPauldrons(px, (look.shape(SUIT) >> 12) & 0xf, a);
+		if(look.draws(AMULET) && !covered && !a.keeps(6, 10))
+			putPx(px, 6, 10, ramp(look, AMULET, ts, false)[1]);
+		if(look.draws(BOOTS))
+		{
+			int c = ramp(look, BOOTS, ts, false)[1];
+			for(int x : a.feetCols)
+				recolour(px, bg, x, a.feetRow, c);
+		}
+		if(look.draws(GLOVES))
+		{
+			int c = ramp(look, GLOVES, ts, false)[1];
+			recolour(px, bg, a.mainX, a.mainY, c);
+			recolour(px, bg, a.offX, a.offY, c);
+		}
+		if(look.draws(HELMET))
+			stamp(px, bg, S_HELMET_SHORT, 0, 0, false, ramp(look, HELMET, ts, false));
+		if(look.draws(EYEWEAR))
+			stamp(px, bg, S_EYEWEAR_SHORT, 0, 0, false, ramp(look, EYEWEAR, ts, false));
+		if(look.draws(SHIELD))
+			stamp(px, bg, S_SHIELD_SHORT, a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
+		if(look.has(WEAPON))
+			stampSquashed(px, weaponSprite(look.shape(WEAPON)), a.mainX, a.mainY, false,
+			              ramp(look, WEAPON, ts, false));
+		if(look.has(OFFHAND))
+			stampSquashed(px, weaponSprite(look.shape(OFFHAND)), a.offX, a.offY, true,
+			              ramp(look, OFFHAND, ts, false));
+	}
+
+	/**
+	 * A suit or shirt on the short frame: the floor tile's chest at 1:1 (tile
+	 * x = frame x + 1), laid on rows 9-11 around the beard; a suit carries on
+	 * down the legs (row 12).  Hides and tiles with no suit shape alternate
+	 * two colours, as on the human frame.
+	 */
+	private void stampBodyShort(int[] px, int bg, Look look, int slot, Anchor a, Tileset ts, boolean pants)
+	{
+		int[] two = null;
+		int sy = -1, ibg = 0;
+		if((look.shape(slot) & HIDE) != 0)
+		{
+			int[] r = hideRamp(look, slot, ts);
+			two = new int[] { r[0], r[1] };
+		}
+		else if(ts.getTilePixels(look.tile(slot), mItem))
+		{
+			ibg = mItem[0];
+			sy = shoulderRow(ibg);
+		}
+		if(two == null && sy < 0)
+		{
+			int[] r = ramp(look, slot, ts, true);
+			two = new int[] { r[1], r[1] };
+		}
+		int[] gaps = new int[32];
+		int nGaps = 0, cells = 0;
+		for(int r = 0; r < SHORT_Y.length; r++)
+		{
+			int y = SHORT_Y[r];
+			for(int x = SHORT_X0[r]; x <= SHORT_X1[r]; x++)
+			{
+				if(a.keeps(x, y))
+					continue;
+				if(y == 10 && (x == 4 || x == 8))
+				{
+					px[y * 16 + x] = 0xff000000;
+					continue;
+				}
+				cells++;
+				if(two != null)
+				{
+					px[y * 16 + x] = two[(x + y) % 2];
+					continue;
+				}
+				int fy = sy + 2 + (y - 9);
+				int c = fy < 16 ? mItem[fy * 16 + x + 1] : ibg;
+				if(c != ibg)
+					px[y * 16 + x] = c;
+				else
+					gaps[nGaps++] = y * 16 + x;
+			}
+		}
+		int fill = two == null && nGaps > GAP_FILL_ABOVE * cells ? gapFill(sy, ibg) : 0;
+		if(fill != 0)
+			for(int i = 0; i < nGaps; i++)
+				px[gaps[i]] = fill;
+		if(!pants)
+			return;
+		for(int x = 4; x <= 8; x++)
+		{
+			int p = px[12 * 16 + x];
+			if(p == bg || (p & 0xffffff) == 0)
+				continue;
+			if(two != null)
+				px[12 * 16 + x] = two[(x + 12) % 2];
+			else
+			{
+				int c = sy + 2 < 16 ? mItem[(sy + 2) * 16 + x + 1] : ibg;
+				if(c != ibg)
+					px[12 * 16 + x] = c;
+				else if(fill != 0)
+					px[12 * 16 + x] = fill;
+			}
+		}
+	}
+
+	/** The cape on the short frame: strips at x2 and x10, rows 9-13, flaring at the hem. */
+	private static void stampCapeShort(int[] px, int bg, int[] ramp)
+	{
+		for(int y = 9; y <= 13; y++)
+		{
+			capePx(px, bg, 2, y, ramp[0], false);
+			capePx(px, bg, 10, y, ramp[2], true);
+		}
+		for(int y = 12; y <= 13; y++)
+		{
+			capePx(px, bg, 1, y, ramp[1], false);
+			capePx(px, bg, 11, y, ramp[2], true);
+		}
+	}
+
+	/** A tile-coordinate sprite that leaves the anchor's kept pixels (a beard) alone. */
+	private static void stampKeep(int[] px, Sprite s, Anchor a, int[] ramp)
+	{
+		for(int r = 0; r < s.rows.length; r++)
+			for(int i = 0; i < s.rows[r].length(); i++)
+			{
+				char c = s.rows[r].charAt(i);
+				int x = s.x0s[r] + i, y = s.ys[r];
+				if(c == '.' || a.keeps(x, y))
+					continue;
+				putPx(px, x, y, c == 'l' ? ramp[0] : c == 'm' ? ramp[1] : c == 'd' ? ramp[2] : fixed(c));
+			}
+	}
+
+	/** A weapon on the short frame: rows above the grip at two-thirds height. */
+	private static void stampSquashed(int[] px, Sprite s, int ox, int oy, boolean mirror, int[] ramp)
+	{
+		for(int r = 0; r < s.rows.length; r++)
+		{
+			int ry = s.ys[r];
+			if(ry < -1)
+				ry = -1 + Math.floorDiv((ry + 1) * 2, 3);
+			for(int i = 0; i < s.rows[r].length(); i++)
+			{
+				char c = s.rows[r].charAt(i);
+				if(c == '.')
+					continue;
+				int dx = s.x0s[r] + i;
+				putPx(px, ox + (mirror ? -dx : dx), oy + ry,
+				      c == 'l' ? ramp[0] : c == 'm' ? ramp[1] : c == 'd' ? ramp[2] : fixed(c));
+			}
+		}
+	}
+
+	/** The suit tile's shoulder row, the first with six drawn pixels across x3-12 (mItem). */
+	private int shoulderRow(int ibg)
+	{
+		for(int y = 0; y < 16; y++)
+		{
+			int n = 0;
+			for(int x = 3; x <= 12; x++)
+				if(mItem[y * 16 + x] != ibg)
+					n++;
+			if(n >= 6)
+				return y;
+		}
+		return -1;
+	}
+
+	/** The commonest colour of the suit's darker right half, below its shoulders (mItem); 0 if none. */
+	private int gapFill(int sy, int ibg)
+	{
+		Map<Integer, Integer> n = new HashMap<>();
+		int fill = 0, best = 0;
+		for(int y = sy; y < 16; y++)
+			for(int x = 8; x < 16; x++)
+			{
+				int c = mItem[y * 16 + x];
+				if(c == ibg || (c & 0xffffff) == 0)
+					continue;
+				Integer k = n.get(c);
+				int v = k == null ? 1 : k + 1;
+				n.put(c, v);
+				if(v > best)
+				{
+					best = v;
+					fill = c;
+				}
+			}
+		return fill;
 	}
 
 	/**
@@ -453,20 +708,7 @@ public final class RhDoll
 				stampLegs(px, bg, a, -1, 0, 0, ramp);
 			return;
 		}
-		int sy = -1;
-		if(ts.getTilePixels(look.tile(slot), mItem))
-		{
-			int ibg = mItem[0];
-			for(int y = 0; y < 16 && sy < 0; y++)
-			{
-				int n = 0;
-				for(int x = 3; x <= 12; x++)
-					if(mItem[y * 16 + x] != ibg)
-						n++;
-				if(n >= 6)
-					sy = y;
-			}
-		}
+		int sy = ts.getTilePixels(look.tile(slot), mItem) ? shoulderRow(mItem[0]) : -1;
 		if(sy < 0)
 		{
 			int[] ramp = ramp(look, slot, ts, true);
@@ -504,32 +746,10 @@ public final class RhDoll
 					gaps[nGaps++] = Y * 16 + X;
 			}
 		}
-		int fill = 0;
-		if(nGaps > GAP_FILL_ABOVE * cells)
-		{
-			Map<Integer, Integer> n = new HashMap<>();
-			int best = 0;
-			for(int y = sy; y < 16; y++)
-				for(int x = 8; x < 16; x++)
-				{
-					int c = mItem[y * 16 + x];
-					if(c == ibg || (c & 0xffffff) == 0)
-						continue;
-					Integer k = n.get(c);
-					int v = k == null ? 1 : k + 1;
-					n.put(c, v);
-					if(v > best)
-					{
-						best = v;
-						fill = c;
-					}
-				}
-			if(best > 0)
-				for(int i = 0; i < nGaps; i++)
-					px[gaps[i]] = fill;
-			else
-				fill = 0;
-		}
+		int fill = nGaps > GAP_FILL_ABOVE * cells ? gapFill(sy, ibg) : 0;
+		if(fill != 0)
+			for(int i = 0; i < nGaps; i++)
+				px[gaps[i]] = fill;
 		if(pants)
 			stampLegs(px, bg, a, sy, ibg, fill, null);
 	}
@@ -603,8 +823,17 @@ public final class RhDoll
 			char c = f[2].charAt(0);
 			int d = DARKER_FROM.indexOf(c);
 			char cr = d >= 0 ? DARKER_TO.charAt(d) : c;
-			putPx(px, x + a.torsoDx, y + a.torsoDy, fixed(c));
-			putPx(px, 15 - x + a.torsoDx, y + a.torsoDy, fixed(cr));
+			if(a.shortFrame)
+			{
+				// down to the short shoulders and in by one, mirrored about x = 6
+				putPx(px, x - 1, y + 2, fixed(c));
+				putPx(px, 13 - x, y + 2, fixed(cr));
+			}
+			else
+			{
+				putPx(px, x + a.torsoDx, y + a.torsoDy, fixed(c));
+				putPx(px, 15 - x + a.torsoDx, y + a.torsoDy, fixed(cr));
+			}
 		}
 	}
 
