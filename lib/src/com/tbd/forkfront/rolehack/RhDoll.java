@@ -359,8 +359,26 @@ public final class RhDoll
 		7, 5, "lmHmmd", 8, 4, "lmmmmmmd", 9, 4, "lmmmmmmd",
 		10, 5, "mmmAmd", 11, 4, "lmmmAmmd", 12, 4, "lmmmAmmd");
 	private static final Sprite S_AMULET = new Sprite(8, 7, "lm");
-	// relative to the off-hand grip
+	// relative to the off-hand grip: any shield whose look the core does not name
 	private static final Sprite S_SHIELD = new Sprite(-2, -1, "lmdA", -1, -1, "mWdA", 0, -1, "mmdA", 1, 0, "dA");
+	// Shields, as the core numbers them (rh_doll_look(), rh_shield_looks[]), drawn by their
+	// look (tools/paperdoll/shields.py) at the off-hand grip -- full size on every body,
+	// dwarves and gnomes too (Lucas, 2026-09-26).
+	private static final Sprite[] SHIELDS = {
+		null,
+		new Sprite(-2, -1, "CKJA", -1, -1, "KKJA", 0, -1, "KJJA", 1, 0, "JA"),   // wooden shield
+		new Sprite(-2, -1, "NNNA", -1, -1, "BNGA", 0, -1, "BNGA", 1, 0, "NA"),   // blue and green shield
+		new Sprite(-2, -1, "KJJA", -1, -1, "PNPA", 0, -1, "NNPA", 1, 0, "PA"),   // white-handed shield
+		new Sprite(-2, -1, "KKJA", -1, -1, "DADA", 0, -1, "PDPA", 1, 0, "PA"),   // red-eyed shield
+		new Sprite(-3, -1, "NNNOA", -2, -1, "NPPOA", -1, -1, "NPPOA", 0, -1, "NPPOA", 1, 0, "NPOA", 2, 1, "OA"),   // large shield
+		new Sprite(-3, 0, "BB", -2, -1, "BKKBA", -1, -1, "BKJBA", 0, -1, "BJJBA", 1, 0, "BBA"),   // large round shield
+		new Sprite(-2, -1, "NNOA", -1, -1, "NNZA", 0, -1, "NZOA", 1, 0, "OA"),   // polished silver shield
+	};
+	private static Sprite shieldSprite(Look look)
+	{
+		int st = look.shape(SHIELD) & 0xff;
+		return st > 0 && st < SHIELDS.length ? SHIELDS[st] : S_SHIELD;
+	}
 	// relative to the weapon-hand grip
 	private static final Sprite S_SHORT_BLADE = new Sprite(-3, 0, "N", -2, 0, "O", -1, -1, "KHK");
 	private static final Sprite S_SWORD = new Sprite(
@@ -452,8 +470,6 @@ public final class RhDoll
 		7, 6, "F..R", 8, 6, "FFFR", 9, 6, "FFFR", 10, 6, "FFFR", 11, 6, "FFFR", 12, 6, "FFFR");
 	private static final Sprite S_APRON_SHORT = new Sprite(9, 5, "FFR", 10, 5, "FFR", 11, 5, "FFR", 12, 5, "FFR");
 
-	/** A buckler on the arm, relative to the off-hand grip. */
-	private static final Sprite S_SHIELD_SHORT = new Sprite(-2, 0, "lmA", -1, 0, "WdA", 0, 0, "mdA");
 	/** The short torso: rows 9-11.  The arm separators at (4,10), (8,10) stay black. */
 	private static final int[] SHORT_Y = { 9, 10, 11 }, SHORT_X0 = { 3, 3, 5 }, SHORT_X1 = { 9, 9, 7 };
 
@@ -638,7 +654,7 @@ public final class RhDoll
 			stamp(px, bg, look.art(EYEWEAR) == ART_EYES ? S_EYES : S_EYEWEAR, a.headDx, a.headDy, false,
 			      ramp(look, EYEWEAR, ts, false));
 		if(look.draws(SHIELD))
-			stamp(px, bg, S_SHIELD, a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
+			stamp(px, bg, shieldSprite(look), a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
 		if(look.has(WEAPON))
 			stamp(px, bg, heldSprite(look, WEAPON), a.mainX, a.mainY, false,
 			      ramp(look, WEAPON, ts, false));
@@ -651,9 +667,9 @@ public final class RhDoll
 	 * Gear on the short frame (dwarf, gnome): the same items, drawn to that body
 	 * -- a short suit mask around the beard, a helmet that replaces the tile's
 	 * own hat, a cape at x2 and x10 with no clasp (the beard covers the neck),
-	 * pauldrons on the lower shoulders, a buckler, and weapons at full size:
+	 * pauldrons on the lower shoulders, and shields and weapons at full size:
 	 * pound for pound the small races are the strong ones (Lucas, 2026-09-26;
-	 * they were squashed to two-thirds before).
+	 * weapons were squashed to two-thirds and shields were bucklers before).
 	 */
 	private void dressShort(int[] px, int bg, Look look, Anchor a, Tileset ts)
 	{
@@ -691,7 +707,7 @@ public final class RhDoll
 			stamp(px, bg, look.art(EYEWEAR) == ART_EYES ? S_EYES_SHORT : S_EYEWEAR_SHORT, 0, 0, false,
 			      ramp(look, EYEWEAR, ts, false));
 		if(look.draws(SHIELD))
-			stamp(px, bg, S_SHIELD_SHORT, a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
+			stamp(px, bg, shieldSprite(look), a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
 		if(look.has(WEAPON))
 			stamp(px, bg, heldSprite(look, WEAPON), a.mainX, a.mainY, false,
 			      ramp(look, WEAPON, ts, false));
