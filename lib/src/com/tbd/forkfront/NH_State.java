@@ -944,6 +944,12 @@ public class NH_State
 		}
 
 		@Override
+		public void heroLook(int[] look)
+		{
+			mMap.setHeroLook(look);
+		}
+
+		@Override
 		public void setPlayerInfo(byte[] name, byte[] role, byte[] race, int flags)
 		{
 			mRolehackStatus.setPlayerInfo(name, role, race, flags, mDecoder);

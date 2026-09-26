@@ -205,6 +205,18 @@ public class Tileset
 	}
 
 	// ____________________________________________________________________________________
+	/** Rolehack: one tile's pixels, for the paper doll.  out must hold w*h ints. */
+	public boolean getTilePixels(int iTile, int[] out)
+	{
+		Bitmap bitmap = getTile(iTile);
+		if(bitmap == null || bitmap.getWidth() != mTileW || bitmap.getHeight() != mTileH
+		   || out.length < mTileW * mTileH)
+			return false;
+		bitmap.getPixels(out, 0, mTileW, 0, 0, mTileW, mTileH);
+		return true;
+	}
+
+	// ____________________________________________________________________________________
 	public int getTileWidth()
 	{
 		return mTileW;

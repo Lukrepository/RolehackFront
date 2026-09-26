@@ -180,6 +180,13 @@
 				android:defaultValue="true"
 				android:key="rhKeyFlash"/>
 
+			<CheckBoxPreference
+				android:title="Paper doll (preview)"
+				android:summary="Draw your armour and weapon on the hero. Placeholder art while the real layers are drawn"
+				android:persistent="true"
+				android:defaultValue="true"
+				android:key="rhPaperDoll"/>
+
 			<ListPreference
 				android:title="Key feedback"
 				android:summary="A vibration, a keyboard click, both or neither when a key goes down. Vibration follows the phone's own touch-feedback setting"

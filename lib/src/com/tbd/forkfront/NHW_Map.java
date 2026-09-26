@@ -21,6 +21,8 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.tbd.forkfront.Tileset;
+import com.tbd.forkfront.rolehack.RhDoll;
+import com.tbd.forkfront.rolehack.RhPrefs;
 
 public class NHW_Map implements NH_Window
 {
@@ -120,6 +122,12 @@ public class NHW_Map implements NH_Window
 	private NH_State mNHState;
 	private final ByteDecoder mDecoder;
 	private int mBorderColor;
+	// Rolehack: the paper doll.  The look arrives from the core whenever the
+	// hero's square or gear changes; the composite is drawn only where the map
+	// really shows the hero's own tile, so a polymorph, a steed or an engulfer
+	// simply wins.
+	private RhDoll.Look mHeroLook;
+	private final RhDoll mDoll = new RhDoll();
 
 	// ____________________________________________________________________________________
 	public NHW_Map(Activity context, Tileset tileset, NHW_Status status, NH_State nhState, ByteDecoder decoder)
@@ -395,6 +403,9 @@ public class NHW_Map implements NH_Window
 	// ____________________________________________________________________________________
 	@Override
 	public void preferencesUpdated(SharedPreferences prefs) {
+		mDoll.clear();
+		if(mHeroLook != null && mUI != null)
+			mUI.invalidateTile(mHeroLook.x, mHeroLook.y);
 		int borderOpacity = prefs.getInt("borderOpacity", 50);
 		int borderColor = Color.rgb(0xc9*borderOpacity/256, 0xc9*borderOpacity/256, 0xf9*borderOpacity/256);
 		if(borderColor != mBorderColor)
@@ -520,6 +531,30 @@ public class NHW_Map implements NH_Window
 			mCursorPos.y = clamp(y, 0, TileRows - 1);
 			mUI.invalidateTile(mCursorPos.x, mCursorPos.y);
 		}
+	}
+
+	// ____________________________________________________________________________________
+	/** Rolehack: the paper doll's look; see RhDoll. */
+	public void setHeroLook(int[] look)
+	{
+		RhDoll.Look old = mHeroLook;
+		mHeroLook = RhDoll.Look.parse(look);
+		if(mUI == null)
+			return;
+		if(old != null)
+			mUI.invalidateTile(old.x, old.y);
+		if(mHeroLook != null)
+			mUI.invalidateTile(mHeroLook.x, mHeroLook.y);
+	}
+
+	/** The dressed hero for this square, or null to draw the tile as it is. */
+	private Bitmap dollAt(int tileX, int tileY, int glyph)
+	{
+		RhDoll.Look look = mHeroLook;
+		if(look == null || !RhPrefs.paperDoll() || look.x != tileX || look.y != tileY
+		   || look.base != glyph)
+			return null;
+		return mDoll.compose(look, mTileset);
 	}
 
 	// ____________________________________________________________________________________
@@ -708,7 +743,11 @@ public class NHW_Map implements NH_Window
 					if(tile.glyph >= 0)
 					{
 						mPaint.setColor(0xffffffff);
-						mTileset.drawTile(canvas, tile.glyph, dst, mPaint);
+						Bitmap doll = dollAt(tileX, tileY, tile.glyph);
+						if(doll != null)
+							canvas.drawBitmap(doll, null, dst, mPaint);
+						else
+							mTileset.drawTile(canvas, tile.glyph, dst, mPaint);
 						Bitmap ovl = mTileset.getTileOverlay(tile.overlay);
 						if(ovl != null)
 							canvas.drawBitmap(ovl, mTileset.getOverlayRect(tile.overlay), dst, mPaint);

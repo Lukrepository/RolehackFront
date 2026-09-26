@@ -510,6 +510,22 @@ public class NetHackIO
 	}
 
 	// ____________________________________________________________________________________
+	// Rolehack: the paper doll -- what the hero wears and wields (winandroid.c,
+	// and_send_hero_look()).
+	@SuppressWarnings("unused")
+	private void heroLook(final int[] look)
+	{
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.heroLook(look);
+			}
+		});
+	}
+
+	// ____________________________________________________________________________________
 	@SuppressWarnings("unused")
 	private void hereContext(final int flags, final byte[] monsterName)
 	{

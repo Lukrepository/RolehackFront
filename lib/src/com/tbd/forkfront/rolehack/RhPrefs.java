@@ -47,10 +47,13 @@ public final class RhPrefs
 	public static final String KEY_SEARCH_BEFORE = "rhSearchBefore";
 	public static final String KEY_SEARCH_COUNT  = "rhSearchCount";
 	public static final String KEY_STATUS_LINES  = "rhStatusLines";
+	/** The paper doll: the hero's gear drawn on the hero tile (placeholder art). */
+	public static final String KEY_PAPER_DOLL    = "rhPaperDoll";
 
 	private static boolean sEnabled = true;
 	private static LabelMode sLabelMode = LabelMode.WORDS;
 	private static boolean sKeyFlash = true;
+	private static boolean sPaperDoll = true;
 	private static StatusLines sStatusLines = StatusLines.FULL;
 	/**
 	 * Movement key size in design dp.  A preference rather than a constant because
@@ -94,6 +97,7 @@ public final class RhPrefs
 			sMacros[i] = i < parts.length ? parts[i] : "";
 		sEnabled   = prefs.getBoolean(KEY_ENABLED, true);
 		sKeyFlash  = prefs.getBoolean(KEY_KEY_FLASH, true);
+		sPaperDoll = prefs.getBoolean(KEY_PAPER_DOLL, true);
 		sLabelMode = parseLabelMode(prefs.getString(KEY_LABEL_MODE, "words"));
 		sStatusLines = parseStatusLines(prefs.getString(KEY_STATUS_LINES, "full"));
 		sPadCell   = parseInt(prefs.getString(KEY_PAD_CELL, null),
@@ -144,6 +148,7 @@ public final class RhPrefs
 	public static boolean enabled()      { return sEnabled; }
 	public static LabelMode labelMode()  { return sLabelMode; }
 	public static boolean keyFlash()     { return sKeyFlash; }
+	public static boolean paperDoll()    { return sPaperDoll; }
 	public static StatusLines statusLines() { return sStatusLines; }
 	public static int padCell()          { return sPadCell; }
 

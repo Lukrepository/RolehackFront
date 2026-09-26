@@ -23,6 +23,9 @@ public interface NH_Handler
 	 * itself because the hero's glyph covers its own square.
 	 */
 	void hereContext(int flags, byte[] monsterName);
+
+	/** Rolehack: the paper doll's look; see RhDoll. */
+	void heroLook(int[] look);
 	void rawPrint(int attr, String msg);
 	void printTile(int wid, int x, int y, int tile, int ch, int col, int special);
 	void ynFunction(String question, byte[] choices, int def);
