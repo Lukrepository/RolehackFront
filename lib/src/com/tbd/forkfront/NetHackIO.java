@@ -526,6 +526,22 @@ public class NetHackIO
 	}
 
 	// ____________________________________________________________________________________
+	// Rolehack: the next menu is a step of character creation (winandroid.c,
+	// rh_creation()); heroTile is the finished hero's picture, or -1.
+	@SuppressWarnings("unused")
+	private void rhCreation(final int step, final int heroTile, final int tone)
+	{
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.creation(step, heroTile, tone);
+			}
+		});
+	}
+
+	// ____________________________________________________________________________________
 	@SuppressWarnings("unused")
 	private void hereContext(final int flags, final byte[] monsterName)
 	{

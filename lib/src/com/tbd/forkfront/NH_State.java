@@ -981,6 +981,12 @@ public class NH_State
 		}
 
 		@Override
+		public void creation(int step, int heroTile, int tone)
+		{
+			com.tbd.forkfront.rolehack.RhCreate.next(step, heroTile, tone);
+		}
+
+		@Override
 		public void setPlayerInfo(byte[] name, byte[] role, byte[] race, int flags)
 		{
 			mRolehackStatus.setPlayerInfo(name, role, race, flags, mDecoder);

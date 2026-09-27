@@ -1,5 +1,6 @@
 package com.tbd.forkfront;
 
+import com.tbd.forkfront.rolehack.RhCreate;
 import com.tbd.forkfront.rolehack.RhDialogSkin;
 import java.util.ArrayList;
 import java.util.Set;
@@ -40,6 +41,8 @@ public class NHW_Menu implements NH_Window
 	private MenuSelectMode mHow;
 	private int mWid;
 	private int mKeyboardCount;
+	/** Rolehack: this menu is a step of character creation (RhCreate.take()), or null. */
+	private int[] mCreation;
 
 	// ____________________________________________________________________________________
 	public NHW_Menu(int wid, Activity context, NetHackIO io, Tileset tileset)
@@ -129,6 +132,7 @@ public class NHW_Menu implements NH_Window
 		mBuilder = null;
 		mType = Type.None;
 		mKeyboardCount = -1;
+		mCreation = null;
 	}
 
 	// ____________________________________________________________________________________
@@ -209,6 +213,7 @@ public class NHW_Menu implements NH_Window
 	{
 		mType = Type.Menu;
 		mKeyboardCount = -1;
+		mCreation = how == MenuSelectMode.PickOne ? RhCreate.take() : null;
 		mUI.createMenu(how);
 		show(false);
 	}
@@ -230,6 +235,8 @@ public class NHW_Menu implements NH_Window
 		private ListView mListView;
 		private AmountSelector mAmountSelector;
 		private Button mSelectAllBtn;
+		/** Rolehack: the menu is drawn as character creation's keys. */
+		private boolean mCreationKeys;
 
 		public UI(Activity context)
 		{
@@ -276,6 +283,17 @@ public class NHW_Menu implements NH_Window
 
 			if(mType == Type.Menu)
 			{
+				// Rolehack: as role.c's "Is this ok?", Enter or Space takes the
+				// default answer; the keys have no list selection to act on.
+				if(mCreationKeys && (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_SPACE))
+				{
+					for(MenuItem item : mItems)
+						if(item.isSelectable() && item.isSelected())
+						{
+							sendSelectOne(item, -1);
+							return KeyEventResult.HANDLED;
+						}
+				}
 				// mListView.onKeyDown(keyCode, event);
 				switch(keyCode)
 				{
@@ -676,10 +694,24 @@ public class NHW_Menu implements NH_Window
 		// ____________________________________________________________________________________
 		public void createMenu(MenuSelectMode how)
 		{
-			if(mRoot == null || mHow != how)
+			boolean fresh = mRoot == null || mHow != how;
+			if(fresh)
 				inflateLayout(how);
 
 			mListView.setAdapter(new MenuItemAdapter(mContext, R.layout.menu_item, mItems, mTileset, mHow));
+
+			// Rolehack: character creation's menus become keys (RhCreate).  A
+			// letter still picks through handleKeyDown, as in any menu.
+			if(fresh)
+				mCreationKeys = mCreation != null && RhCreate.dress(mRoot, mItems, mTileset, mCreation,
+						new RhCreate.Listener()
+						{
+							@Override
+							public void onPick(MenuItem item)
+							{
+								sendSelectOne(item, -1);
+							}
+						});
 
 			mRoot.requestFocus();
 

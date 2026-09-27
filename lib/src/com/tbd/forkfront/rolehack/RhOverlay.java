@@ -4288,32 +4288,7 @@ public class RhOverlay extends FrameLayout
 
 	private void bindTap(final RhFace face, final Runnable action)
 	{
-		face.setOnTouchListener(new OnTouchListener()
-		{
-			@Override
-			public boolean onTouch(View v, MotionEvent e)
-			{
-				switch(e.getActionMasked())
-				{
-					case MotionEvent.ACTION_DOWN:
-						face.setFacePressed(true);
-						RhFeedback.press(face);
-						return true;
-					case MotionEvent.ACTION_UP:
-						if(face.isFacePressed())
-						{
-							face.setFacePressed(false);
-							RhFeedback.up(face);
-							action.run();
-						}
-						return true;
-					case MotionEvent.ACTION_CANCEL:
-						face.setFacePressed(false);
-						return true;
-				}
-				return false;
-			}
-		});
+		face.onTap(action);
 	}
 
 	/**

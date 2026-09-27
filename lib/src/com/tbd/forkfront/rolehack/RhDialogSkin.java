@@ -82,7 +82,7 @@ public final class RhDialogSkin
 	private RhDialogSkin() {}
 
 	/** A title on the glass: the prompt, as the message line's questions are. */
-	private static final int TITLE = 0xffffc166;
+	static final int TITLE = 0xffffc166;
 	/** A marked menu item's letter, mark and count. */
 	private static final int MARK = 0xffffb347;
 	/** A marked menu item's row. */
@@ -485,7 +485,7 @@ public final class RhDialogSkin
 	}
 
 	/** Text on the glass: the screen font, the phosphor, and its glow. */
-	private static void onGlass(TextView t, int colour)
+	static void onGlass(TextView t, int colour)
 	{
 		Context c = t.getContext();
 		if(t instanceof NH_TextView)

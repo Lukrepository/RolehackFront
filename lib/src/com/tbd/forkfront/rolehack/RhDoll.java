@@ -97,6 +97,21 @@ public final class RhDoll
 		0xffb27254, 0xff905844, 0xff704238, 0xff54322e,
 	};
 	private static final int VANILLA_SKIN = 0xffffb691;
+
+	/**
+	 * A tile's pixels in a fixed skin tone (the skintone option, 1..8): for
+	 * pictures of the hero drawn before the game has one, as character
+	 * creation's.  A random tone is rolled from the birthday when the game
+	 * begins, so it cannot be shown earlier; 0 leaves the tile as it is.
+	 */
+	public static void toneTile(int[] px, int tone)
+	{
+		if(tone < 1 || tone > TONES.length)
+			return;
+		for(int i = 0; i < px.length; i++)
+			if(px[i] == VANILLA_SKIN)
+				px[i] = TONES[tone - 1];
+	}
 	private static final int HELMET = 0, SUIT = 1, SHIRT = 2, CLOAK = 3, SHIELD = 4,
 		GLOVES = 5, BOOTS = 6, EYEWEAR = 7, AMULET = 8, WEAPON = 9, OFFHAND = 10;
 

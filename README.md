@@ -69,8 +69,9 @@ The interface lives in `lib/src/com/tbd/forkfront/rolehack/`:
 | `RhTheme` | Styles and fonts |
 | `RhCommands` | The command vocabulary |
 | `RhPrefs` | Settings and pins |
+| `RhCreate` | Character creation as keys |
 
-It hooks into ForkFront in a few places: `NH_State` routes the Back key and sets where the map centres, and the status and "what's here" callbacks come from `winandroid.c` in RolehackDroid.
+It hooks into ForkFront in a few places: `NH_State` routes the Back key and sets where the map centres, `NHW_Menu` draws character creation's menus as keys, and the status, "what's here" and character-creation callbacks come from `winandroid.c` in RolehackDroid.
 
 ## Credits and licences
 

@@ -26,6 +26,9 @@ public interface NH_Handler
 
 	/** Rolehack: the paper doll's look; see RhDoll. */
 	void heroLook(int[] look);
+
+	/** Rolehack: the next menu is a step of character creation; see RhCreate. */
+	void creation(int step, int heroTile, int tone);
 	void rawPrint(int attr, String msg);
 	void printTile(int wid, int x, int y, int tile, int ch, int col, int special);
 	void ynFunction(String question, byte[] choices, int def);

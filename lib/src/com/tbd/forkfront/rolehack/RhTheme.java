@@ -287,6 +287,12 @@ public final class RhTheme
 	private static int sStyle = STYLE_TERMINAL;
 	private static int sPhosphor;
 
+	/** True for the GameCube skin, whose keys have their own colours. */
+	public static boolean gamecube()
+	{
+		return sStyle == STYLE_GAMECUBE;
+	}
+
 	/** True when the interface is drawn as a terminal: keycaps, case, framed map. */
 	public static boolean terminal()
 	{

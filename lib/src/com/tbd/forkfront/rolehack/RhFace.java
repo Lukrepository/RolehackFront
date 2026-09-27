@@ -12,7 +12,9 @@ import android.graphics.PorterDuffXfermode;
 import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.Bitmap;
 import android.os.Build;
+import android.view.MotionEvent;
 import android.view.View;
 
 /**
@@ -84,6 +86,14 @@ public class RhFace extends View
 	private int mLabelColor = RhTheme.TEXT;
 
 	private boolean mPressedFace;
+	/**
+	 * A picture on the top face, above the legend: character creation's roles,
+	 * races and altars.  Drawn unfiltered, at a whole multiple of its pixels
+	 * where it can be, so tile art stays sharp.
+	 */
+	private Bitmap mIcon;
+	private final Paint mIconPaint = new Paint();
+	private final RectF mIconRect = new RectF();
 	/** Drawn as a pointing-stick nub rather than a keycap -- the flick key. */
 	private boolean mNub;
 	private final Paint mNubRim = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -130,6 +140,8 @@ public class RhFace extends View
 
 		mText.setTypeface(RhTheme.monoBold(context));
 		mText.setTextAlign(Paint.Align.CENTER);
+		// a new Paint smooths scaled bitmaps; tile art wants its pixels
+		mIconPaint.setFilterBitmap(false);
 
 		// The drop shadow's mask filter and the DST_OUT punch both need a real
 		// layer.  These faces are static between presses, so a software layer
@@ -187,6 +199,46 @@ public class RhFace extends View
 	/** Terminal style: a short tag in the face's top-left corner, where a raw key would sit. */
 	public RhFace tag(String t)     { mTag = t; invalidate(); return this; }
 	public RhFace nub(boolean on)   { mNub = on; invalidate(); return this; }
+	/** Terminal style: a picture above the legend (see mIcon). */
+	public RhFace icon(Bitmap b)    { mIcon = b; mLabelDirty = true; invalidate(); return this; }
+
+	/**
+	 * A key's tap, for every key that has one.  The face sinks and clicks the
+	 * moment a finger lands and the command runs when it lifts; nothing is
+	 * animated, so the key answers at the speed of the touch.  A finger that
+	 * slides away into a scroll gets a cancel, and nothing runs.
+	 */
+	public RhFace onTap(final Runnable action)
+	{
+		final RhFace face = this;
+		face.setOnTouchListener(new OnTouchListener()
+		{
+			@Override
+			public boolean onTouch(View v, MotionEvent e)
+			{
+				switch(e.getActionMasked())
+				{
+					case MotionEvent.ACTION_DOWN:
+						face.setFacePressed(true);
+						RhFeedback.press(face);
+						return true;
+					case MotionEvent.ACTION_UP:
+						if(face.isFacePressed())
+						{
+							face.setFacePressed(false);
+							RhFeedback.up(face);
+							action.run();
+						}
+						return true;
+					case MotionEvent.ACTION_CANCEL:
+						face.setFacePressed(false);
+						return true;
+				}
+				return false;
+			}
+		});
+		return this;
+	}
 	/** Terminal style: a small indicator window in the keycap's top-right corner. */
 	public RhFace lamp(int state)   { mLamp = state; invalidate(); return this; }
 	/** Terminal style: a backlit amber legend. */
@@ -456,6 +508,23 @@ public class RhFace extends View
 		mCapTop.set(side, RhTheme.dp(c, 2f) + sink, w - side, h - shadow - front + sink);
 	}
 
+	/** The picture's size on this face, px: 0 without one. */
+	private float iconSize()
+	{
+		if(mIcon == null || mCapTop.height() <= 0f)
+			return 0f;
+		float target = Math.min(mCapTop.height() * 0.66f, RhTheme.dp(getContext(), 44f));
+		int w = mIcon.getWidth();
+		return target >= w ? w * (float)Math.floor(target / w) : target;
+	}
+
+	/** The face's height the picture takes from the legend, px. */
+	private float iconReserve()
+	{
+		float icon = iconSize();
+		return icon > 0f ? icon + RhTheme.dp(getContext(), 4f) : 0f;
+	}
+
 	private int[] capFamily()
 	{
 		if(mCap != null)
@@ -672,6 +741,15 @@ public class RhFace extends View
 		int legend = mLit ? RhTheme.CAP_LIT : cap[RhTheme.CAP_LEGEND];
 		int legendAlpha = mPlaceholder ? 110 : 255;
 
+		float icon = iconSize();
+		if(icon > 0f)
+		{
+			float left = Math.round(mCapTop.centerX() - icon / 2f);
+			float top = Math.round(mCapTop.top + RhTheme.dp(c, 3f));
+			mIconRect.set(left, top, left + icon, top + icon);
+			canvas.drawBitmap(mIcon, null, mIconRect, mIconPaint);
+		}
+
 		// A raw key rides in the corner only while it is a key's worth: an
 		// extended command such as #exploremode ran into its own label, and the
 		// case switch's "#case" is not a key at all.  The label says what it does.
@@ -726,7 +804,9 @@ public class RhFace extends View
 			mText.setShadowLayer(RhTheme.dp(c, 5f), 0f, 0f, 0xbfffaa3c);
 		Paint.FontMetrics fm = mText.getFontMetrics();
 		float lineH = mFittedSizePx * mLabelLeading;
-		float y = mCapTop.top + (fh - mLabelLines.length * lineH) / 2f;
+		// under a picture, the legend centres in what the picture leaves
+		float areaTop = icon > 0f ? mIconRect.bottom : mCapTop.top;
+		float y = areaTop + (mCapTop.bottom - areaTop - mLabelLines.length * lineH) / 2f;
 		for(String line : mLabelLines)
 		{
 			float baseline = y + (lineH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
@@ -881,7 +961,7 @@ public class RhFace extends View
 			// A keycap's face is shorter than its box, so its legend must fit the
 			// height as well as the width.
 			boolean fits = lines != null
-					&& (!keycap || lines.length * size * mLabelLeading <= mCapTop.height());
+					&& (!keycap || lines.length * size * mLabelLeading <= mCapTop.height() - iconReserve());
 			if(fits || size <= minSize)
 			{
 				mLabelLines = lines != null ? lines : new String[] { text };
