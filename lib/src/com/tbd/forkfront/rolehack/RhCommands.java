@@ -151,6 +151,11 @@ public final class RhCommands
 		i("Drop one", "d"), i("Drop type", "D"), i("Pick from menu", "Dm"), i("Review first", "Di"),
 		i("Blessed", "DB"), i("Uncursed", "DU"), i("Cursed", "DC"), i("Unknown", "DX"),
 		i("Unpaid", "Du"), i("Drop all", "Da"), i("Tip container", "M-T"),
+		// Every item of unknown B/U/C status, in one press (Lucas, 2026-09-26):
+		// an altar's test.  D's menu gives the special entries fixed letters --
+		// X unknown status, A auto-select (pickup.c query_category()) -- and 5.0
+		// rejects A on its own, so with nothing unknown nothing drops.
+		i("Drop unknown", "DXA\\n"),
 	});
 
 	/**
@@ -414,7 +419,9 @@ public final class RhCommands
 		// tap the open fan for the drawer.
 		i("Fight", "F", RhTheme.R90),
 		new Item[] {
-			i("Fire", "f"), i("Throw", "t"), i("Zap", "z"), i("Cast", "Z"),
+			i("Fire", "f"), i("Throw", "t"), i("Zap", "z"),
+			i("Kick", "^D"), null, i("Cast", "Z"),
+			i("Quiver", "Q"), i("Grapple", "M-G"), i("Turn undead", "M-t"),
 		}, FIGHT,
 		193f, 62f, 46f, 46f,
 		RhFaceShapes.STAR12, 2f, 2f, 2f, 2f, -1f,
@@ -438,6 +445,8 @@ public final class RhCommands
 		i("Drop", "d"),
 		new Item[] {
 			i("Drop type", "D"), i("From menu", "Dm"), i("Review first", "Di", RhTheme.OFF90),
+			i("Drop all", "Da"), null, i("Tip", "M-T"),
+			i("Cursed", "DC"), i("Drop unknown", "DXA\\n"), i("Unpaid", "Du"),
 		}, DROP,
 		58f, 210f, 92f, 48f,
 		RhFaceShapes.CHEVRON, 2f, 2f, 2f, 2f, -1f,
@@ -454,14 +463,9 @@ public final class RhCommands
 	public static final Hub HUB_INTERACT = new Hub("apply", "APPLY", RhTheme.G90,
 		i("Apply", "a"),
 		new Item[] {
-			// Open left the fan (Lucas, 2026-09-24): the context key offers it beside
-			// any closed door, and Close beside an open one.
-			i("Apply tool", "a"), i("Sit", "M-s"),
-			i("Dip", "M-d"),
-			// Engrave took Tip's place in the fan; Tip stays in the Use drawer.
-			// Elbereth is not a niche command; tipping a container is.  A hold goes
-			// straight to the pick-what-to-write-with menu.
-			alt("Engrave", "E", "E?"),
+			i("Apply", "a"), i("Engrave", "E"), i("Dip", "M-d"),
+			i("Rub", "M-r"), null, i("Invoke", "M-i"),
+			i("Sit", "M-s"), i("Force lock", "M-f"), null,
 		}, USE,
 		-58f, 62f, 76f, 76f,
 		null, 0f, 0f, 0f, 0f, -1f,
@@ -482,8 +486,14 @@ public final class RhCommands
 	 */
 	public static final Hub HUB_CONSUME = new Hub("consume", "EAT\nQUAFF\nREAD", RhTheme.PINK,
 		i("Eat", "e"),
+		// The pinch layer (Lucas asked for suggestions, 2026-09-26): potions to
+		// dip, a unicorn horn to apply, a wand to zap your way out.  Pray is
+		// kept off every layer: a mistap there costs a run, and a layer puts
+		// commands where the thumb presses without looking.
 		new Item[] {
 			i("Eat", "e"), i("Quaff", "q"), i("Read", "r"),
+			i("Dip", "M-d"), null, i("Apply", "a"),
+			i("Zap", "z"), null, null,
 		}, USE,
 		-58f, 146f, 63f, 63f,
 		null, 0f, 0f, 0f, 0f, 3f,
@@ -502,7 +512,11 @@ public final class RhCommands
 	 */
 	public static final Hub HUB_EQUIP = new Hub("equip", "INVENTORY", RhTheme.G90,
 		i("Inventory", "i"),
-		new Item[0], EQUIP,
+		new Item[] {
+			i("By type", "I"), i("Armour", "["), i("Rings", "="),
+			i("Wielded", ")"), null, i("Amulet", "\""),
+			i("All worn", "*"), i("Gold", "$"), i("Letters", "M-a"),
+		}, EQUIP,
 		-84f, 282f, 154f, 24f,
 		null, 0f, 0f, 0f, 0f, 3f,
 		8.5f, 0.08f, 0f, 0f,
@@ -765,6 +779,8 @@ public final class RhCommands
 	 */
 	public static final ContextAction CTX_LOOT     = new ContextAction("loot",    "Loot",     "M-l");
 	public static final ContextAction CTX_SACRIFICE = new ContextAction("offer", "Sacrifice", "M-o");
+	/** On an altar, beside Sacrifice: drop everything of unknown B/U/C status to see it flash. */
+	public static final ContextAction CTX_DROP_UNKNOWN = new ContextAction("dropunknown", "Drop unknown", "DXA\\n");
 	public static final ContextAction CTX_SEARCH   = new ContextAction("search",  "Search",   "s", 1);
 	public static final ContextAction CTX_REST     = new ContextAction("rest",    "Rest",     ".", 20);
 	/**
@@ -824,7 +840,8 @@ public final class RhCommands
 
 		for(Hub h : HUBS)
 			for(Item it : h.fan)
-				PINNABLE.put(it.key, it);
+				if(it != null)   // a layer's centre, and its empty places
+					PINNABLE.put(it.key, it);
 
 		for(Item it : EQUIP_RADIAL)
 			PINNABLE.put(it.key, it);

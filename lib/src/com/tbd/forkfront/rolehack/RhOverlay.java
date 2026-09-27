@@ -242,6 +242,7 @@ public class RhOverlay extends FrameLayout
 	private final List<RhFace> mPadCells = new ArrayList<RhFace>();
 	private RhFace mPadCentre;
 	private ViewGroup mPadMold;
+	private LayerFrame mLayerFrame;
 	private ViewGroup mCtxRadial;
 	/** Radial nodes, per hub id -- OFFENSE and EQUIP both have one. */
 	private final java.util.Map<String, ViewGroup> mRadials =
@@ -314,9 +315,11 @@ public class RhOverlay extends FrameLayout
 	{
 		if(mAssign == null || flickPlacing())
 			return false;
-		// From COMBAT's drawer a command goes to its fan or to its points.
+		// From COMBAT's drawer a command goes to its layer or its points; from
+		// INVENTORY's, to its layer or the equipment cells.
 		if(mAssignTarget == ASSIGN_FAN)
-			return attackGroup && RhCommands.HUB_ATTACK.id.equals(mAssignHub);
+			return RhCommands.HUB_ATTACK.id.equals(mAssignHub) ? attackGroup
+				 : RhCommands.HUB_EQUIP.id.equals(mAssignHub) && !attackGroup;
 		if(mAssignTarget == ASSIGN_BOTH)
 			return true;
 		return attackGroup ? mAssignTarget == ASSIGN_ATTACK : mAssignTarget == ASSIGN_EQUIP;
@@ -1195,7 +1198,7 @@ public class RhOverlay extends FrameLayout
 				});
 		}
 
-		mFlickFace = new RhFace(mContext).radius(4f).face(RhTheme.JADE).tag("FLICK");
+		mFlickFace = new RhFace(mContext).radius(4f).face(RhTheme.JADE).tag("FLICK").nub(true);
 		addView(mFlickFace, termAttackSlot(2));
 		bindFlick(mFlickFace, RhCommands.FLICK_BEARING, HUB_HOLD_MS,
 			new Runnable()
@@ -1729,7 +1732,10 @@ public class RhOverlay extends FrameLayout
 		if(mStatus.here(RhStatus.HERE_STAIRS_UP))
 			mCtxCandidates.add(RhCommands.CTX_ASCEND);
 		if(mStatus.here(RhStatus.HERE_ALTAR))
+		{
 			mCtxCandidates.add(RhCommands.CTX_SACRIFICE);
+			mCtxCandidates.add(RhCommands.CTX_DROP_UNKNOWN);
+		}
 		if(mStatus.here(RhStatus.HERE_CONTAINER))
 			mCtxCandidates.add(RhCommands.CTX_LOOT);
 		if(mStatus.here(RhStatus.ADJ_CLOSED_DOOR))
@@ -1760,7 +1766,8 @@ public class RhOverlay extends FrameLayout
 	 */
 	private void refreshPadCentre()
 	{
-		if(mPadCentre == null)
+		// A layer owns the centre while it is up.
+		if(mPadCentre == null || mFanOpen != null)
 			return;
 
 		if(directionPending())
@@ -1859,12 +1866,17 @@ public class RhOverlay extends FrameLayout
 						mPadCentre.cap(RhTheme.role(RhTheme.ROLE_MOVE));
 					mPadMold.addView(mPadCentre, boxLB(mPadCell, mPadCell, left, bottom));
 					bindHold(mPadCentre, CENTRE_HOLD_MS,
-						new Runnable() { @Override public void run() { openContextRadial(); } },
+						new Runnable() { @Override public void run() { if(mFanOpen == null) openContextRadial(); } },
 						new Runnable()
 					{
 						@Override
 						public void run()
 						{
+							if(mFanOpen != null)
+							{
+								layerPlaceTapped(4, mPadCentre);
+								return;
+							}
 							// The ninth direction, when one is wanted.
 							if(directionPending())
 								pressDirection('.');
@@ -1883,11 +1895,18 @@ public class RhOverlay extends FrameLayout
 				if(mTerm)
 					cell.cap(RhTheme.role(RhTheme.ROLE_MOVE)).sub(String.valueOf(key), 7f, RhTheme.RAW_KEY, 1f);
 				mPadMold.addView(cell, boxLB(mPadCell, mPadCell, left, bottom));
+				final int place = idx;
+				final RhFace me = cell;
 				bindTap(cell, new Runnable()
 				{
 					@Override
 					public void run()
 					{
+						if(mFanOpen != null)
+						{
+							layerPlaceTapped(place, me);
+							return;
+						}
 						pressDirection(key);
 					}
 				});
@@ -1898,6 +1917,9 @@ public class RhOverlay extends FrameLayout
 		repaintPad();
 		setPadAlpha(padIdleAlpha());
 		refreshPadCentre();
+
+		mLayerFrame = new LayerFrame(mContext);
+		addView(mLayerFrame, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 	}
 
 	/**
@@ -2231,60 +2253,8 @@ public class RhOverlay extends FrameLayout
 		hv.fan.setVisibility(GONE);
 		addView(hv.fan, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
 
-		for(int i = 0; i < hub.fan.length && i < FAN_SIZE.length; i++)
-		{
-			final int index = i;
-			double a = Math.toRadians(fanA0(hub) + i * hub.fanStep);
-			float sx = offsetX(hubCx(hub), (float)Math.cos(a) * hub.fanRadius);
-			float sy = hubCy(hub) - (float)Math.sin(a) * hub.fanRadius;
-
-			final RhFace slot = new RhFace(mContext)
-					.shape(FAN_RADIUS_CORNER[i] < 0 ? RhFace.Shape.CIRCLE : RhFace.Shape.RECT)
-					.radius(FAN_RADIUS_CORNER[i] < 0 ? RhTheme.FACE_RADIUS : FAN_RADIUS_CORNER[i]);
-			slot.setRotation(FAN_ROTATE[i]);
-			hv.fan.addView(slot, centredLB(FAN_SIZE[i], FAN_SIZE[i], sx, sy));
-			hv.fanFaces.add(slot);
-
-			// Both handlers read the node's command at press time: a fan is
-			// assignable now (Lucas, 2026-09-24), so what a node holds can change.
-			bindHold(slot, HUB_HOLD_MS,
-				new Runnable()
-				{
-					@Override
-					public void run()
-					{
-						// A hold sends the command's fuller form -- Engrave's menu of
-						// things to write with, rather than starting the engraving.
-						RhCommands.Item item = fanItem(hub, index);
-						if(mAssign != null || item == null || !item.hasAlt())
-							return;
-						closeFan();
-						flashRaw(item.altKey, slot);
-						mHost.sendCommand(item.altKey);
-					}
-				},
-				new Runnable()
-				{
-					@Override
-					public void run()
-					{
-						if(assignAcceptsFan(hub))
-						{
-							placeFan(hv, index);
-							return;
-						}
-						RhCommands.Item item = fanItem(hub, index);
-						closeFan();
-						if(item == null)
-						{
-							// An emptied node is the way into the drawer to refill it.
-							openDrawer(hub.group.id, hub);
-							return;
-						}
-						fireFromHub(hub, item, slot);
-					}
-				});
-		}
+		// A hub's fan became its layer on the pad (Lucas, 2026-09-26): nothing
+		// hangs off the hub any more.  See openFan().
 		refreshFan(hv);
 
 		if(hub == RhCommands.HUB_ATTACK)
@@ -2341,20 +2311,9 @@ public class RhOverlay extends FrameLayout
 		else
 			addView(hv.face, centredLB(hubW(hub), hubH(hub), hubCx(hub), hubCy(hub)));
 
-		if(hub == RhCommands.HUB_EQUIP)
-		{
-			// The inventory bar over the equipment matrix: tap `i`, hold for the
-			// whole gear drawer.  The six cells below it do the rest.
-			bindHold(hv.face, HUB_HOLD_MS,
-				new Runnable() { @Override public void run() { openDrawer(hub.group.id, hub); } },
-				new Runnable() { @Override public void run() { execute(hub.quick, hv.face); } });
-		}
-		else
-		{
-			bindHold(hv.face, HUB_HOLD_MS,
-				new Runnable() { @Override public void run() { openFan(hv); } },
-				new Runnable() { @Override public void run() { hubTapped(hv); } });
-		}
+		bindHold(hv.face, HUB_HOLD_MS,
+			new Runnable() { @Override public void run() { openFan(hv); } },
+			new Runnable() { @Override public void run() { hubTapped(hv); } });
 
 		mHubs.add(hv);
 	}
@@ -2675,12 +2634,13 @@ public class RhOverlay extends FrameLayout
 		mAssignHub = hub != null ? hub.id : null;
 		if(target == ASSIGN_FAN)
 		{
-			// The fan opens with every node lit; tapping one places the command.
+			// The layer comes up with every place lit; tapping one places it.
 			HubView hv = hubView(mAssignHub);
 			if(hv != null)
 			{
+				disarm();
 				mFanOpen = hv.hub.id;
-				hv.fan.setVisibility(VISIBLE);
+				hv.face.lit(true);
 			}
 		}
 		refreshAllSlots();
@@ -2691,8 +2651,6 @@ public class RhOverlay extends FrameLayout
 	/** Where a drawer's command can be pinned, by the hub that opened the drawer. */
 	private int assignTargetFor(RhCommands.Hub hub)
 	{
-		if(hub == RhCommands.HUB_EQUIP)
-			return ASSIGN_EQUIP;
 		if(hub != null && mFanKeys.containsKey(hub.id))
 			return ASSIGN_FAN;
 		return ASSIGN_BOTH;
@@ -2713,7 +2671,145 @@ public class RhOverlay extends FrameLayout
 		return mAssign != null && !flickPlacing() && mAssignTarget == ASSIGN_FAN && hub.id.equals(mAssignHub);
 	}
 
-	/** A fan node's command: the pinned key, or the fan as shipped. */
+
+	/** Re-skin a hub's layer on the pad, when it is the one up. */
+	private void refreshFan(HubView hv)
+	{
+		if(hv.hub.id.equals(mFanOpen))
+			paintLayer(hv.hub);
+	}
+
+	// ____________________________________________________________________________________
+	// Layers (Lucas, 2026-09-26), in place of the fans.  Holding a hub turns the
+	// movement pad into that hub's nine places, the way a keyboard's Fn key turns
+	// its keys into others: the options appear on keys that are always there, at
+	// the pad's size, in places that never move -- the brief's reveal-in-place
+	// rule, which the fans broke by opening over other keys.  The centre is ALL,
+	// the hub's drawer, so every hub reads as a tree: key, layer, drawer.
+	//
+	// Let go and the layer stays up to be read; or keep holding and tap the pad
+	// with the other thumb, a chord.  A tap on a place runs it and the pad is
+	// arrows again, so a command that asks for a direction gets them at once.
+
+	private int layerKind(RhCommands.Hub hub)
+	{
+		if(hub == RhCommands.HUB_ATTACK)
+			return RhTheme.LAYER_COMBAT;
+		if(hub == RhCommands.HUB_DROP)
+			return RhTheme.LAYER_DROP;
+		if(hub == RhCommands.HUB_CONSUME)
+			return RhTheme.LAYER_EAT;
+		if(hub == RhCommands.HUB_INTERACT)
+			return RhTheme.LAYER_APPLY;
+		return RhTheme.LAYER_INVENTORY;
+	}
+
+	/** A place's face: 0-8 in the pad's order, 4 the centre. */
+	private RhFace padFace(int place)
+	{
+		if(place == 4)
+			return mPadCentre;
+		int i = place < 4 ? place : place - 1;
+		return i >= 0 && i < mPadCells.size() ? mPadCells.get(i) : null;
+	}
+
+	private void paintLayer(RhCommands.Hub hub)
+	{
+		int kind = layerKind(hub);
+		int[] cap = RhTheme.layerCap(kind);
+		boolean taking = assignAcceptsFan(hub);
+		for(int place = 0; place < 9; place++)
+		{
+			RhFace f = padFace(place);
+			if(f == null)
+				continue;
+			f.uppercase(false);
+			if(place == 4)
+			{
+				f.placeholder(false).cap(cap)
+				 .label("ALL", 11f, 0.06f)
+				 .sub("drawer", 7f, RhTheme.TEXT, 0.75f);
+				continue;
+			}
+			RhCommands.Item item = fanItem(hub, place);
+			if(taking)
+				f.placeholder(false).cap(RhTheme.capFor(RhTheme.A90))
+				 .label("HERE", 8f, 0.04f)
+				 .sub(null, 7f, RhTheme.RAW_KEY, 1f);
+			else if(item == null)
+				f.placeholder(true).cap(cap)
+				 .label("+", 15f, 0f)
+				 .sub("assign", 7f, RhTheme.TEXT, 0.75f);
+			else
+				f.placeholder(false).cap(cap)
+				 .label(labelFor(item), 9.5f, 0.02f)
+				 .sub(item.key, 7f, RhTheme.RAW_KEY, 1f);
+		}
+		if(mLayerFrame != null)
+			mLayerFrame.show(hub.label.replace('\n', ' '), RhTheme.layerAccent(kind));
+	}
+
+	/** The pad as it was: arrows, and the centre's own command. */
+	private void restorePad()
+	{
+		for(int i = 0; i < mPadCells.size(); i++)
+		{
+			int idx = i < 4 ? i : i + 1;
+			RhFace c = mPadCells.get(i);
+			c.placeholder(false).uppercase(false).label(RhCommands.PAD_ARROW[idx], 18f, 0f);
+			if(mTerm)
+				c.cap(RhTheme.role(RhTheme.ROLE_MOVE))
+				 .sub(String.valueOf(RhCommands.PAD_KEYS[idx]), 7f, RhTheme.RAW_KEY, 1f);
+			else
+				c.sub(null, 7f, RhTheme.RAW_KEY, 1f);
+		}
+		if(mPadCentre != null)
+		{
+			mPadCentre.placeholder(false);
+			if(mTerm)
+				mPadCentre.cap(RhTheme.role(RhTheme.ROLE_MOVE));
+		}
+		repaintPad();
+		refreshPadCentre();
+	}
+
+	/** A pad key was tapped while a layer was up. */
+	private void layerPlaceTapped(int place, View from)
+	{
+		HubView hv = hubView(mFanOpen);
+		if(hv == null)
+		{
+			closeFan();
+			return;
+		}
+		if(place == 4)
+		{
+			if(mAssign != null)
+				return;
+			closeFan();
+			openDrawer(hv.hub.group.id, hv.hub);
+			return;
+		}
+		if(assignAcceptsFan(hv.hub))
+		{
+			placeFan(hv, place);
+			return;
+		}
+		if(mAssign != null)
+			return;
+		RhCommands.Item item = fanItem(hv.hub, place);
+		closeFan();
+		if(item == null)
+		{
+			// An empty place is the way into the drawer to fill it.
+			openDrawer(hv.hub.group.id, hv.hub);
+			mDrawer.promptAssign("pick a command for the layer");
+			return;
+		}
+		fireFromHub(hv.hub, item, from);
+	}
+
+	/** A place's command: the one assigned there, or the layer as shipped. */
 	private RhCommands.Item fanItem(RhCommands.Hub hub, int index)
 	{
 		String[] keys = mFanKeys.get(hub.id);
@@ -2722,34 +2818,66 @@ public class RhOverlay extends FrameLayout
 		return RhCommands.pinnable(keys[index]);
 	}
 
-	/** Re-skin one hub's fan nodes from its key array, in place. */
-	private void refreshFan(HubView hv)
+	/**
+	 * The frame and name chip round the pad while a layer is up, in the
+	 * layer's colour.  It draws only; touches pass through to the keys.
+	 */
+	private final class LayerFrame extends View
 	{
-		boolean taking = assignAcceptsFan(hv.hub);
-		for(int i = 0; i < hv.fanFaces.size(); i++)
+		private String mTitle = "";
+		private int mAccent = 0xffffffff;
+		private final Paint mEdge = new Paint(Paint.ANTI_ALIAS_FLAG);
+		private final Paint mChip = new Paint(Paint.ANTI_ALIAS_FLAG);
+		private final Paint mLabel = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+		private final android.graphics.RectF mBox = new android.graphics.RectF();
+		private final android.graphics.RectF mPill = new android.graphics.RectF();
+
+		LayerFrame(android.content.Context c)
 		{
-			RhFace node = hv.fanFaces.get(i);
-			if(taking)
-			{
-				node.placeholder(false)
-				    .face(RhTheme.A90)
-				    .textColor(RhTheme.BADGE_TEXT)
-				    .label("HERE", 8f, 0.04f)
-				    .sub(null, 7f, RhTheme.RAW_KEY, 1f);
-				continue;
-			}
-			RhCommands.Item item = fanItem(hv.hub, i);
-			if(item == null)
-				node.placeholder(true)
-				    .textColor(RhTheme.TEXT)
-				    .label("+", 15f, 0f)
-				    .sub(null, 7f, RhTheme.RAW_KEY, 1f);
-			else
-				node.placeholder(false)
-				    .face(item.face != null ? item.face : RhTheme.G90)
-				    .textColor(RhTheme.TEXT)
-				    .label(labelFor(item), 8.5f, 0.02f)
-				    .sub(subKeyFor(item), 8f, RhTheme.RAW_KEY, 1f);
+			super(c);
+			setVisibility(GONE);
+			mEdge.setStyle(Paint.Style.STROKE);
+			mEdge.setStrokeWidth(RhTheme.dp(c, 2f));
+			mLabel.setTypeface(RhTheme.capFont(c));
+			mLabel.setTextSize(RhTheme.dp(c, 9.5f));
+			mLabel.setLetterSpacing(0.12f);
+			mLabel.setColor(0xff111111);
+		}
+
+		void show(String title, int accent)
+		{
+			mTitle = title + " LAYER";
+			mAccent = accent;
+			setVisibility(VISIBLE);
+			invalidate();
+		}
+
+		void hide()
+		{
+			setVisibility(GONE);
+		}
+
+		@Override
+		protected void onDraw(Canvas canvas)
+		{
+			if(mPadMold == null)
+				return;
+			float air = RhTheme.dp(getContext(), 5f);
+			mBox.set(mPadMold.getLeft() - air, mPadMold.getTop() - air,
+					 mPadMold.getRight() + air, mPadMold.getBottom() + air);
+			float r = RhTheme.dp(getContext(), 10f);
+			mEdge.setColor(mAccent);
+			mEdge.setShadowLayer(RhTheme.dp(getContext(), 8f), 0f, 0f, mAccent);
+			canvas.drawRoundRect(mBox, r, r, mEdge);
+
+			float ch = RhTheme.dp(getContext(), 16f);
+			float tw = mLabel.measureText(mTitle);
+			mPill.set(mBox.left + r, mBox.top - ch / 2f, mBox.left + r + tw + RhTheme.dp(getContext(), 12f), mBox.top + ch / 2f);
+			mChip.setColor(mAccent);
+			canvas.drawRoundRect(mPill, ch / 2f, ch / 2f, mChip);
+			Paint.FontMetrics fm = mLabel.getFontMetrics();
+			canvas.drawText(mTitle, mPill.left + RhTheme.dp(getContext(), 6f),
+							mPill.centerY() - (fm.ascent + fm.descent) / 2f, mLabel);
 		}
 	}
 
@@ -2846,7 +2974,7 @@ public class RhOverlay extends FrameLayout
 		{
 			String sub;
 			if(assignAcceptsFan(hv.hub))
-				sub = "pick a node";
+				sub = "pick a place";
 			else if(hv.hub == RhCommands.HUB_ATTACK && assignAccepts(true))
 				sub = "pick a point";
 			else if(hv.hub == RhCommands.HUB_EQUIP && assignAccepts(false))
@@ -2866,9 +2994,7 @@ public class RhOverlay extends FrameLayout
 	 */
 	private String hubIdleSub(RhCommands.Hub hub)
 	{
-		if(hub == RhCommands.HUB_EQUIP)
-			return "hold · all gear";
-		return hub.leftSide ? "hold ▸" : "◂ hold";
+		return "hold · layer";
 	}
 
 	private float hubSubSize(RhCommands.Hub hub)
@@ -2896,6 +3022,7 @@ public class RhOverlay extends FrameLayout
 		fireFromHub(hv.hub, hv.hub.quick, hv.face);
 	}
 
+	/** Hold on a hub: its layer comes up on the pad. */
 	private void openFan(HubView hv)
 	{
 		closeCandidates();
@@ -2903,11 +3030,14 @@ public class RhOverlay extends FrameLayout
 		closeDrawer();
 		closeFan();
 		closeRadial();
+		closeContextRadial();
+		disarm();
 		mFanOpen = hv.hub.id;
-		hv.fan.setVisibility(VISIBLE);
+		paintLayer(hv.hub);
+		hv.face.lit(true);
 		if(hv.hub == RhCommands.HUB_ATTACK)
 			refreshSlots(hv, true);
-		hv.face.sub("tap = all", 8f, RhTheme.TEXT, 0.75f);
+		hv.face.sub("tap = all", hubSubSize(hv.hub), RhTheme.TEXT, 0.75f);
 		applyDimming();
 	}
 
@@ -2915,20 +3045,18 @@ public class RhOverlay extends FrameLayout
 	{
 		if(mFanOpen == null)
 			return;
-		HubView closedFan = null;
-		for(HubView hv : mHubs)
-		{
-			if(!hv.hub.id.equals(mFanOpen))
-				continue;
-			hv.fan.setVisibility(GONE);
-			refreshFan(hv);
-			if(hv.hub == RhCommands.HUB_ATTACK)
-				closedFan = hv;
-			hv.face.sub(hubIdleSub(hv.hub), hubSubSize(hv.hub), RhTheme.TEXT, 0.75f);
-		}
+		HubView was = hubView(mFanOpen);
 		mFanOpen = null;
-		if(closedFan != null)
-			refreshSlots(closedFan, true);
+		restorePad();
+		if(mLayerFrame != null)
+			mLayerFrame.hide();
+		if(was != null)
+		{
+			was.face.lit(false);
+			was.face.sub(hubIdleSub(was.hub), hubSubSize(was.hub), RhTheme.TEXT, 0.75f);
+			if(was.hub == RhCommands.HUB_ATTACK)
+				refreshSlots(was, true);
+		}
 		applyDimming();
 	}
 
@@ -3101,7 +3229,9 @@ public class RhOverlay extends FrameLayout
 			if(hv != null)
 			{
 				lift.add(hv.face);
-				lift.add(hv.fan);
+				lift.add(mPadMold);
+				if(mLayerFrame != null)
+					lift.add(mLayerFrame);
 			}
 		}
 		if(mRadialOpen != null)
@@ -3154,7 +3284,9 @@ public class RhOverlay extends FrameLayout
 				if(assignAcceptsFan(hv.hub))
 				{
 					lift.add(hv.face);
-					lift.add(hv.fan);
+					lift.add(mPadMold);
+					if(mLayerFrame != null)
+						lift.add(mLayerFrame);
 				}
 			}
 			if(!flickPlacing())
@@ -4659,6 +4791,7 @@ public class RhOverlay extends FrameLayout
 		mWedges = null;
 		mFlickFace = null;
 		mFlickNodes.clear();
+		mLayerFrame = null;
 		mCtxStrip.clear();
 		mChipRows.clear();
 		mChipsOpen = null;

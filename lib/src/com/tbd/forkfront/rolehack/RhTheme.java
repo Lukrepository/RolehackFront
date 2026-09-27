@@ -118,6 +118,8 @@ public final class RhTheme
 	public static final int[] CAP_ROSE  = withLegend(CAP_DARK, 0xfff08bb6);
 	public static final int[] CAP_LAV   = withLegend(CAP_DARK, 0xffc2b6ff);
 	/** Macros on the Terminal skins: a muted jade plastic, legends dark (about 5.9:1). */
+	/** APPLY's layer on the Terminal skins: the cream pad inverted, since APPLY is cream too. */
+	public static final int[] CAP_CREAM_INV = withLegend(CAP_DARK, 0xfffbf8f1);
 	public static final int[] CAP_JADE  = { 0xff8cc9b8, 0xff6aae9b, 0xff65a592, 0xff5a9a88, 0xff3f7566,
 	                                        0xff0f2a24, 0xff0f2a24, 0xff1f4a40 };
 
@@ -178,6 +180,42 @@ public final class RhTheme
 		if(face == VIOLET) return gc ? GC_LAV  : CAP_LAV;
 		if(face == JADE)   return gc ? GC_EMERALD : CAP_JADE;
 		return gc ? GC_DARK : CAP_DARK;
+	}
+
+	/*
+	 * Layers (Lucas, 2026-09-26): while a hub is held the movement pad becomes
+	 * its commands, and wears that hub's colour so the change is plain.  On the
+	 * Terminal skins APPLY and the pad are both cream, so APPLY's layer is the
+	 * pad inverted.
+	 */
+	public static final int LAYER_APPLY = 0, LAYER_COMBAT = 1, LAYER_EAT = 2,
+							LAYER_DROP = 3, LAYER_INVENTORY = 4;
+
+	public static int[] layerCap(int layer)
+	{
+		boolean gc = sStyle == STYLE_GAMECUBE;
+		switch(layer)
+		{
+			case LAYER_APPLY:  return gc ? GC_RED     : CAP_CREAM_INV;
+			case LAYER_COMBAT: return gc ? GC_SCARLET : CAP_RED;
+			case LAYER_EAT:    return gc ? GC_BLUE    : CAP_ROSE;
+			case LAYER_DROP:   return gc ? GC_TEAL    : CAP_TEAL;
+			default:           return gc ? GC_GREY    : CAP_SLATE;
+		}
+	}
+
+	/** The frame and name chip round a layer: the layer's brightest colour. */
+	public static int layerAccent(int layer)
+	{
+		boolean gc = sStyle == STYLE_GAMECUBE;
+		switch(layer)
+		{
+			case LAYER_APPLY:  return gc ? 0xfff0505f : 0xfffbf8f1;
+			case LAYER_COMBAT: return gc ? 0xffff6b5b : 0xffc85240;
+			case LAYER_EAT:    return gc ? 0xff5c93ff : 0xfff08bb6;
+			case LAYER_DROP:   return gc ? 0xff5fe3d2 : 0xff5fd8c9;
+			default:           return gc ? 0xffe4e4ea : 0xff9c9a94;
+		}
 	}
 
 	/** Long rest's keycap in the current skin. */

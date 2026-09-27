@@ -33,20 +33,22 @@ Each key shows its tap on its face and its hold on its front edge. The small let
 | REST | Rest the count shown | Choose the count. Swipe the key toward the screen's edge to bring in **Long rest**, the darker key (searches 100–400 turns, or any number), hidden there so it can't be tapped by accident |
 | SACRIFICE | Offer | Pray |
 | M1 · M2 · M3 | Run the macro, or set one up if the key is empty | Edit the macro |
-| DROP | Drop one item | Fan: drop by type, from a menu, review first. Tap DROP again for everything |
-| COMBAT | Fight and Kick keys appear | All combat commands. **Flick** up to Fight, up-right to Kick |
+| FLICK (the round nub) | Run its tap macro, or set one up | Shows its three macros. **Flick** up or up-right to run one; up is Kick to start with |
+| DROP | Drop one item | Layer: drop by type, from a menu, review first, all, tip, cursed, **drop unknown** (everything of unknown B/U/C status, in one press), unpaid |
+| COMBAT | Fight, then a direction | Layer: fire, throw, zap, kick, cast, quiver, grapple, turn undead |
 | LOOK | Look here (`:`) | Far look (`;`) |
-| Context key | Lights up when something applies: descend, ascend, sacrifice, loot, open or close a door. With two or more, tap to choose | — |
-| INVENTORY | Inventory (`i`) | All gear commands |
+| Context key | Lights up when something applies: descend, ascend, sacrifice (and drop unknown, on an altar), loot, open or close a door. With two or more, tap to choose | — |
+| INVENTORY | Inventory (`i`) | Layer: by type, armour, rings, wielded, amulet, all worn, gold, letters |
 | Wear · Put on · Wield / Take off · Remove · Swap | That command | Clear the key. On an empty key: pick what goes there |
-| EAT QUAFF READ | Eat | Fan: eat, quaff, read. Tap again for everything |
+| EAT QUAFF READ | Eat | Layer: eat, quaff, read, dip, apply, zap, and two places of your own |
 | SEARCH | Search the count shown | Choose the count |
-| APPLY | Apply (`a`) | Fan: apply, sit, dip, engrave. Tap again for everything |
+| APPLY | Apply (`a`) | Layer: apply, engrave, dip, rub, invoke, sit, force lock, and a place of your own |
 | MENU · WORLD · GAME · KEYS | Settings, the command drawers, the keyboard. GAME ends with what you know: Overview, Enhance skills, Discoveries, Attributes, Genocided, Vanquished, Chronicle, Conduct, Past messages, Known spells, All equipment, What is. WORLD ends with Adjacent trap and Terrain | — |
 
+- **Layers.** Holding DROP, COMBAT, INVENTORY, EAT/QUAFF/READ or APPLY turns the movement pad into that key's layer, in that key's colour. Tap a place to run it and the pad is arrows again. The centre is **ALL**, the key's drawer. Let go and the layer stays up to be read, or keep holding and tap the pad with your other thumb. Tapping the key again also opens its drawer.
 - **Counts.** Every count row ends in **×n**, which asks for any number up to NetHack's limit of 32767.
-- **Closing things.** Any fan, radial or drawer closes with a tap anywhere else, or the phone's Back button.
-- **Moving commands onto keys.** Hold an empty key (it reads *hold to fill*): its drawer opens ready, and the command you tap goes straight onto that key. A tap on an empty key does nothing, so clearing a key also switches it off. Or open a drawer and press **ASSIGN**, then tap a command; the keys it can go to light up, and you tap one. OFFENSE's drawer fills its pinned keys, INVENTORY's fills the equipment keys, and a fan key's drawer (DROP, EAT/QUAFF/READ, INTERACT) fills that key's fan.
+- **Closing things.** Any layer, radial or drawer closes with a tap anywhere else, or the phone's Back button.
+- **Moving commands onto keys.** Hold an empty key (it reads *hold to fill*): its drawer opens ready, and the command you tap goes straight onto that key. A tap on an empty key does nothing, so clearing a key also switches it off. Or open a drawer and press **ASSIGN**, then tap a command; the keys it can go to light up, and you tap one. A key's drawer fills that key's layer (COMBAT's also its two pinned keys, INVENTORY's also the equipment keys), and every drawer can fill M1-M3 and the flick key (tap its **+**, then the place). **DEFAULTS**, beside a lit ASSIGN, puts the keys back as they shipped.
 - **Lamps under the screen.**
   - SEARCH: search mode is on (WORLD → Search mode).
   - ARMED: a command is waiting for a direction.

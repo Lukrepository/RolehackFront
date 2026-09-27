@@ -142,7 +142,7 @@ public final class RhPrefs
 				continue;
 			String[] def = new String[h.fan.length];
 			for(int i = 0; i < def.length; i++)
-				def[i] = h.fan[i].key;
+				def[i] = h.fan[i] != null ? h.fan[i].key : null;
 			sFans.put(h.id, parseSlots(prefs.getString(KEY_FAN_PREFIX + h.id, null), def));
 		}
 	}
@@ -157,7 +157,9 @@ public final class RhPrefs
 	 * newline raw and wrote a broken INTERACT fan (see joinSlots), so its values
 	 * are left behind and the fans start again from the defaults.
 	 */
-	public static final String KEY_FAN_PREFIX = "rhFanSlots_";
+	// Layers (2026-09-26) are nine places where the fans had three or four
+	// nodes, so they keep their assignments under a new name.
+	public static final String KEY_FAN_PREFIX = "rhLayer_";
 	private static final java.util.Map<String, String[]> sFans = new java.util.HashMap<String, String[]>();
 
 	public static String[] fanSlots(String hubId)

@@ -84,6 +84,10 @@ public class RhFace extends View
 	private int mLabelColor = RhTheme.TEXT;
 
 	private boolean mPressedFace;
+	/** Drawn as a pointing-stick nub rather than a keycap -- the flick key. */
+	private boolean mNub;
+	private final Paint mNubRim = new Paint(Paint.ANTI_ALIAS_FLAG);
+	private final android.graphics.Path mNubClip = new android.graphics.Path();
 	private boolean mPlaceholder;
 
 	// Terminal style: see drawKeycap().
@@ -182,6 +186,7 @@ public class RhFace extends View
 	public RhFace defaultCap(int[] family) { mDefaultCap = family; invalidate(); return this; }
 	/** Terminal style: a short tag in the face's top-left corner, where a raw key would sit. */
 	public RhFace tag(String t)     { mTag = t; invalidate(); return this; }
+	public RhFace nub(boolean on)   { mNub = on; invalidate(); return this; }
 	/** Terminal style: a small indicator window in the keycap's top-right corner. */
 	public RhFace lamp(int state)   { mLamp = state; invalidate(); return this; }
 	/** Terminal style: a backlit amber legend. */
@@ -336,7 +341,10 @@ public class RhFace extends View
 	{
 		if(RhTheme.terminal())
 		{
-			drawKeycap(canvas);
+			if(mNub)
+				drawNub(canvas);
+			else
+				drawKeycap(canvas);
 			return;
 		}
 
@@ -502,6 +510,79 @@ public class RhFace extends View
 			case '↖': return 315f;
 		}
 		return Float.NaN;
+	}
+
+	/**
+	 * The flick key as a pointing stick's nub (Lucas, 2026-09-26: "the little
+	 * nubbin that small laptops had in the early 2000s"): a rubber dome standing
+	 * up out of the case, its grip a fine grid of bumps, its shadow long enough
+	 * to say it sits above the keys.  Nothing moves on its own.  The GameCube's
+	 * C-stick is the same idea -- a nub you flick.
+	 */
+	private void drawNub(Canvas canvas)
+	{
+		Context c = getContext();
+		int[] cap = capFamily();
+		float w = getWidth(), h = getHeight();
+		float cx = w / 2f, cy = h / 2f;
+		float rad = Math.min(w, h) / 2f - RhTheme.dp(c, 3f);
+		if(rad <= 0f)
+			return;
+		float sink = mPressedFace ? RhTheme.dp(c, 1.5f) : 0f;
+
+		// The hole in the case it stands in, then the shadow it throws.
+		mBand.setShader(null);
+		mBand.setColor(0xd9000000);
+		canvas.drawCircle(cx, cy + RhTheme.dp(c, 1f), rad + RhTheme.dp(c, 2.5f), mBand);
+		mBand.setColor(0x73000000);
+		canvas.drawCircle(cx + RhTheme.dp(c, 1f), cy + (mPressedFace ? RhTheme.dp(c, 1.5f) : RhTheme.dp(c, 4f)),
+						  rad, mBand);
+
+		// The dome, lit from the upper left.
+		mFill.setShader(new RadialGradient(cx - rad * 0.35f, cy - rad * 0.4f + sink, rad * 1.45f,
+				new int[] { cap[RhTheme.CAP_T1], cap[RhTheme.CAP_T2], cap[RhTheme.CAP_SR] },
+				new float[] { 0f, 0.55f, 1f }, Shader.TileMode.CLAMP));
+		canvas.drawCircle(cx, cy + sink, rad, mFill);
+		mFill.setShader(null);
+
+		// The grip.
+		canvas.save();
+		mNubClip.reset();
+		mNubClip.addCircle(cx, cy + sink, rad - RhTheme.dp(c, 1f), android.graphics.Path.Direction.CW);
+		canvas.clipPath(mNubClip);
+		float step = RhTheme.dp(c, 2.6f), dot = RhTheme.dp(c, 0.55f);
+		mBand.setColor(0x2e000000);
+		int row = 0;
+		for(float y = cy - rad; y <= cy + rad; y += step, row++)
+			for(float x = cx - rad + ((row & 1) != 0 ? step / 2f : 0f); x <= cx + rad; x += step)
+				canvas.drawCircle(x, y + sink, dot, mBand);
+		canvas.restore();
+
+		mNubRim.setStyle(Paint.Style.STROKE);
+		mNubRim.setStrokeWidth(RhTheme.dp(c, 1f));
+		mNubRim.setColor(mPressedFace ? 0x26ffffff : 0x4dffffff);
+		canvas.drawCircle(cx, cy + sink, rad - RhTheme.dp(c, 0.5f), mNubRim);
+
+		// The tap's legend, small, on the dome.
+		String label = mLabelRaw == null ? "" : mLabelRaw.replace('\n', ' ');
+		if(label.length() == 0)
+			return;
+		int legend = cap[RhTheme.CAP_LEGEND];
+		mText.setTypeface(RhTheme.capFont(c));
+		mText.setTextAlign(Paint.Align.CENTER);
+		setTracking(mText, 0.02f);
+		float size = "+".equals(label) ? RhTheme.dp(c, 16f) : RhTheme.dp(c, 9f);
+		mText.setTextSize(size);
+		while(size > RhTheme.dp(c, 6f) && mText.measureText(label) > rad * 1.6f)
+		{
+			size *= 0.92f;
+			mText.setTextSize(size);
+		}
+		mText.setColor(legend);
+		mText.setAlpha(mPlaceholder ? 150 : 255);
+		Paint.FontMetrics fm = mText.getFontMetrics();
+		canvas.drawText(label, cx, cy + sink - (fm.ascent + fm.descent) / 2f, mText);
+		mText.setAlpha(255);
 	}
 
 	private void drawKeycap(Canvas canvas)
