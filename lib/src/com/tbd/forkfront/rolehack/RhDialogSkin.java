@@ -522,7 +522,24 @@ public final class RhDialogSkin
 			caret.setColor(RhTheme.phosphorText());
 			caret.setSize(px(c, 2f), 1);
 			e.setTextCursorDrawable(caret);
+			// the selection handles too, in the phosphor rather than the system's accent
+			Drawable h = e.getTextSelectHandle();
+			if(h != null)
+				e.setTextSelectHandle(tinted(h));
+			h = e.getTextSelectHandleLeft();
+			if(h != null)
+				e.setTextSelectHandleLeft(tinted(h));
+			h = e.getTextSelectHandleRight();
+			if(h != null)
+				e.setTextSelectHandleRight(tinted(h));
 		}
+	}
+
+	private static Drawable tinted(Drawable d)
+	{
+		Drawable t = d.mutate();
+		t.setTint(RhTheme.phosphorText());
+		return t;
 	}
 
 	// ____________________________________________________________________________________
