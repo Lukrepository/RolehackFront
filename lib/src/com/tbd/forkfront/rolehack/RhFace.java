@@ -460,7 +460,9 @@ public class RhFace extends View
 	{
 		if(mCap != null)
 			return mCap;
-		if(mPlaceholder)
+		// An empty key is dark, except a macro's: an empty macro is still a macro,
+		// and keeps the macro colour (Lucas, 2026-09-26).
+		if(mPlaceholder && mFace != RhTheme.JADE)
 			return RhTheme.capFor(RhTheme.G90);
 		if(mDefaultCap != null && (mFace == RhTheme.G90 || mFace == null))
 			return mDefaultCap;

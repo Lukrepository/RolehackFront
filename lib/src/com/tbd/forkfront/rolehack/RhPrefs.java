@@ -129,6 +129,10 @@ public final class RhPrefs
 				sMacros[2 * FLICK_TAP + 1] = moved.key;
 			}
 			writeMacros(prefs);
+			// The retired point is spent once it has moved, so restoring the macros
+			// cannot bring it back onto the flick key.
+			if(prefs.contains(KEY_ATK_SLOTS))
+				prefs.edit().putString(KEY_ATK_SLOTS, joinSlots(sAtkSlots)).commit();
 		}
 		sEquipSlots = parseSlots(prefs.getString(KEY_EQUIP_SLOTS, null),
 		                         RhCommands.EQUIP_SLOT_DEFAULT);
