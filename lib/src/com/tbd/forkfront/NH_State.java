@@ -445,10 +445,27 @@ public class NH_State
 	public void showControls()
 	{
 		mControlsVisible = true;
+		mDialogUp = false;
 		updateVisibleState();
 	}
 
 	// ____________________________________________________________________________________
+	/**
+	 * Rolehack: a dialog is up over the whole screen (a question, a line to
+	 * type).  The classic controls go, as for hideControls(); the terminal
+	 * styles keep the case in view behind it -- standing the overlay down only
+	 * let the classic status lines show through, and the dialog's scrim keeps
+	 * its keys from being pressed.
+	 */
+	public void hideControlsForDialog()
+	{
+		mDialogUp = true;
+		hideControls();
+	}
+
+	// ____________________________________________________________________________________
+	private boolean mDialogUp;
+
 	public void hideControls()
 	{
 		mControlsVisible = false;
@@ -556,7 +573,7 @@ public class NH_State
 			mKeyboard.hide();
 			mDPad.forceHide();
 			if(mRolehackUI != null)
-				mRolehackUI.setSuppressed(true);
+				mRolehackUI.setSuppressed(!(mDialogUp && RhTheme.terminal()));
 		}
 
 		applyRolehackTopBand();

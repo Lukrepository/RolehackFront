@@ -1,5 +1,8 @@
 package com.tbd.forkfront;
 
+import android.view.WindowManager;
+import com.tbd.forkfront.rolehack.RhTheme;
+import com.tbd.forkfront.rolehack.RhDialogSkin;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -231,7 +234,7 @@ public class NH_GetLine
 			mWizardCheck = (CheckBox)mRoot.findViewById(R.id.wizard);
 			mWizardCheck.setVisibility(showWizard ? View.VISIBLE : View.GONE);
 			
-			mAdapter = new ArrayAdapter<>(context, android.R.layout.simple_list_item_1, mHistory);
+			mAdapter = RhDialogSkin.historyAdapter(context, mHistory);
 			mHistoryList.setAdapter(mAdapter);
 			
 			mHistoryList.setVisibility(View.GONE);
@@ -277,7 +280,12 @@ public class NH_GetLine
 				}
 			});
 
-			mState.hideControls();
+			mState.hideControlsForDialog();
+			// The terminal styles keep the case behind the line; the window pans
+			// for the keyboard rather than shrinking, so the case isn't laid out
+			// again in half the height.
+			if(RhTheme.terminal())
+				context.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
 			mInput.requestFocus();
 			
 			mInput.setText(initText);

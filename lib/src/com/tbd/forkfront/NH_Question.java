@@ -1,5 +1,6 @@
 package com.tbd.forkfront;
 
+import com.tbd.forkfront.rolehack.RhDialogSkin;
 import java.util.Set;
 
 import android.app.Activity;
@@ -132,6 +133,7 @@ public class NH_Question
 			// mRoot.setFocusableInTouchMode(true);
 
 			final View def = mRoot.findViewById(mBtns[mDefIdx]);
+			RhDialogSkin.markDefault(def);
 			if(def != null)
 			{
 				def.requestFocus();
@@ -143,7 +145,7 @@ public class NH_Question
 				mRoot.requestFocus();
 			}
 
-			mState.hideControls();
+			mState.hideControlsForDialog();
 		}
 
 		private void maybeDisableInput() {

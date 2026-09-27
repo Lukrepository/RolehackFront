@@ -1,5 +1,6 @@
 package com.tbd.forkfront;
 
+import com.tbd.forkfront.rolehack.RhDialogSkin;
 import java.util.ArrayList;
 import android.app.Activity;
 import android.content.Context;
@@ -152,6 +153,7 @@ public class MenuItemAdapter extends ArrayAdapter<MenuItem>
 			tile.setEnabled(enabled);
 			cb.setEnabled(enabled);
 
+			RhDialogSkin.menuRow(v, item, mHow); // tty's "a - item", in the terminal styles
 			item.setView(v);
 		}
 		return v;

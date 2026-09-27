@@ -1,5 +1,6 @@
 package com.tbd.forkfront;
 
+import com.tbd.forkfront.rolehack.RhDialogSkin;
 import java.util.Set;
 
 import android.app.Activity;
@@ -221,7 +222,7 @@ public class NHW_Text implements NH_Window
 			if(isVisible())
 			{
 				if(mBuilder.length() > 0)
-					mTextView.setText(mBuilder);
+					mTextView.setText(RhDialogSkin.glassText(mBuilder));
 				else
 					mTextView.setText(null);
 			}

@@ -1,5 +1,6 @@
 package com.tbd.forkfront;
 
+import com.tbd.forkfront.rolehack.RhDialogSkin;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -27,6 +28,8 @@ public class Util
 	{
 		View v = inflate(context, layoutId);
 		((ViewGroup)parent).addView(v);
+		if(parent.getId() == R.id.dlg_frame)
+			RhDialogSkin.apply(v); // the terminal styles' dialogs
 		return v;
 	}
 	
@@ -35,6 +38,8 @@ public class Util
 	{
 		View v = inflate(context, layoutId);
 		((ViewGroup)context.findViewById(parentId)).addView(v);
+		if(parentId == R.id.dlg_frame)
+			RhDialogSkin.apply(v); // the terminal styles' dialogs
 		return v;
 	}
 

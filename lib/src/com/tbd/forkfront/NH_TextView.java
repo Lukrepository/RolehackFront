@@ -1,5 +1,6 @@
 package com.tbd.forkfront;
 
+import com.tbd.forkfront.rolehack.RhTheme;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
@@ -20,6 +21,8 @@ public class NH_TextView extends TextView {
 	private static int REVISION;
 
 	private int mRevision;
+	/** Rolehack: this text is on a terminal dialog's glass (RhDialogSkin), in the screen font. */
+	private boolean mOnGlass;
 	private Typeface mOriginalTypeface;
 	private float mOriginalSizePx;
 
@@ -97,12 +100,23 @@ public class NH_TextView extends TextView {
 	private void update() {
 		SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
 		boolean isMonospaceMode = prefs.getBoolean("monospace", false);
+		// on the glass: the screen font, scaled to read at the size the layout asked for
+		Typeface glass = mOnGlass ? RhTheme.screenFont(getContext()) : null;
+		float scale = mOnGlass ? RhTheme.screenFontScale() : 1f;
 		if(isMonospaceMode) {
-			updateMode(true, Typeface.MONOSPACE, FITTED_SIZE_PX);
+			updateMode(true, glass != null ? glass : Typeface.MONOSPACE, FITTED_SIZE_PX * scale);
 		} else {
-			updateMode(false, mOriginalTypeface, mOriginalSizePx);
+			updateMode(false, glass != null ? glass : mOriginalTypeface, mOriginalSizePx * scale);
 		}
 		mRevision = REVISION;
+	}
+
+	/** Rolehack: draw this text as the terminal's glass does (RhDialogSkin). */
+	public void setOnGlass(boolean on) {
+		if(mOnGlass == on)
+			return;
+		mOnGlass = on;
+		update();
 	}
 
 	private static void updateFontSize(DisplayMetrics displayMetrics) {

@@ -1,5 +1,6 @@
 package com.tbd.forkfront;
 
+import com.tbd.forkfront.rolehack.RhDialogSkin;
 import java.util.ArrayList;
 import java.util.Set;
 
@@ -632,7 +633,7 @@ public class NHW_Menu implements NH_Window
 			Log.print("create text dlg");
 
 			mRoot = Util.inflate(mContext, R.layout.dialog_text, R.id.dlg_frame);
-			((TextView)mRoot.findViewById(R.id.text_view)).setText(mBuilder);
+			((TextView)mRoot.findViewById(R.id.text_view)).setText(RhDialogSkin.glassText(mBuilder));
 
 			View btn = mRoot.findViewById(R.id.btn_ok);
 			btn.setOnClickListener(new View.OnClickListener()
