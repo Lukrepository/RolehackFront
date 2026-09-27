@@ -67,8 +67,11 @@ import java.util.Locale;
  *   comes up on a second monitor: the case's hood as its bezel, round a glass
  *   like the map's (RhScreen's tube: scanlines, vignette and glare), its text
  *   in the screen font and phosphor.  A menu reads as tty draws it: "a - item",
- *   headings in inverse video, a marked item's letter and "+" in amber.  Under
- *   the colour phosphor an item keeps the game's colour, so menu colours show.
+ *   headings in inverse video, a marked item's letter and "+" in amber.  An
+ *   item keeps the game's colour under every phosphor, so menu colours show:
+ *   they are the player's own rules, and they carry what the phosphor only
+ *   dresses (Lucas, 2026-09-27: blessed, uncursed and cursed had gone from the
+ *   inventory under the amber phosphor).  The phosphor is plain text's colour.
  *
  *   The buttons are keycaps -- RhFace.drawKeycap's recipe as a Drawable, since
  *   the dialogs' code holds them as Buttons -- and the one Enter would press
@@ -150,15 +153,14 @@ public final class RhDialogSkin
 	}
 
 	/**
-	 * Text for the glass: under a single phosphor the game's colours give way to
-	 * it; inverse video becomes the phosphor's; dim becomes its dim.
+	 * Text for the glass: plain text takes the phosphor and the game's colours
+	 * stay; inverse video becomes the phosphor's; dim becomes its dim.
 	 */
 	public static CharSequence glassText(CharSequence s)
 	{
 		if(!RhTheme.terminal() || !(s instanceof Spanned))
 			return s;
 		SpannableStringBuilder b = new SpannableStringBuilder(s);
-		boolean mono = !RhTheme.phosphorColour();
 		for(BackgroundColorSpan bg : b.getSpans(0, b.length(), BackgroundColorSpan.class))
 		{
 			int st = b.getSpanStart(bg), en = b.getSpanEnd(bg);
@@ -179,7 +181,7 @@ public final class RhDialogSkin
 				b.removeSpan(fg);
 				b.setSpan(new ForegroundColorSpan(RhTheme.phosphorDim()), st, en, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 			}
-			else if(mono || isPlain(col))
+			else if(isPlain(col))
 				b.removeSpan(fg);
 		}
 		return b;
@@ -284,8 +286,6 @@ public final class RhDialogSkin
 
 	private static int itemColour(MenuItem item)
 	{
-		if(!RhTheme.phosphorColour())
-			return RhTheme.phosphorText();
 		Spanned t = item.getText();
 		ForegroundColorSpan[] fg = t.getSpans(0, t.length(), ForegroundColorSpan.class);
 		int col = fg.length > 0 ? fg[0].getForegroundColor() : -1;
