@@ -269,6 +269,8 @@ public class RhOverlay extends FrameLayout
 	private boolean mPortraitLayout;
 	/** True while the soft keyboard owns the bottom of the window. */
 	private boolean mSuppressed;
+	/** The terminal with ForkFront's keyboard up: nothing but the screen (setScreenOnly). */
+	private boolean mScreenOnly;
 	/** True while the core is waiting for a direction of its own accord. */
 	private boolean mExpectsDirection;
 
@@ -497,10 +499,13 @@ public class RhOverlay extends FrameLayout
 			}
 		});
 		LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
-		lp.leftMargin   = RhTheme.dpi(mContext, glassSideDp());
-		lp.rightMargin  = lp.leftMargin;
-		lp.topMargin    = RhTheme.dpi(mContext, glassTopDp());
-		lp.bottomMargin = RhTheme.dpi(mContext, glassBottomDp());
+		if(!mScreenOnly)
+		{
+			lp.leftMargin   = RhTheme.dpi(mContext, glassSideDp());
+			lp.rightMargin  = lp.leftMargin;
+			lp.topMargin    = RhTheme.dpi(mContext, glassTopDp());
+			lp.bottomMargin = RhTheme.dpi(mContext, glassBottomDp());
+		}
 		addView(mScreen, lp);
 		if(mStatus != null)
 			mScreen.setStatus(mStatus);
@@ -518,6 +523,15 @@ public class RhOverlay extends FrameLayout
 	{
 		if(!mTerm || getVisibility() != VISIBLE || getWidth() == 0 || getHeight() == 0)
 			return null;
+		if(mScreenOnly)
+		{
+			// the screen fills the view: the map between its two bands
+			int top    = RhTheme.dpi(mContext, RhScreen.MSG_BAND);
+			int bottom = RhTheme.dpi(mContext, RhScreen.statusBand());
+			if(getHeight() - top - bottom <= 0)
+				return null;
+			return new android.graphics.Rect(0, top, getWidth(), getHeight() - bottom);
+		}
 		// Caseless, the map has the whole screen again, as the colourful style gave
 		// it -- except in portrait, where the banks take the bottom of the screen
 		// and the hero is centred in what is left above them.
@@ -566,7 +580,8 @@ public class RhOverlay extends FrameLayout
 
 	private void updateFitLimit()
 	{
-		if(!RhTheme.terminal())
+		// Screen only, there is no case to fit: the lines read at their own size.
+		if(!RhTheme.terminal() || mScreenOnly)
 		{
 			RhTheme.setFitLimit(Float.MAX_VALUE);
 			return;
@@ -4393,6 +4408,58 @@ public class RhOverlay extends FrameLayout
 			return;
 		mSuppressed = suppressed;
 		applyVisibility();
+	}
+
+	/**
+	 * The terminal with ForkFront's keyboard up (Lucas, 2026-09-26): the fewest
+	 * things on screen, for classic muscle memory -- the map, and the screen's
+	 * message and status bands over it, in the terminal's lettering rather than
+	 * the classic status lines.  No case and no keys: the keyboard is the
+	 * control surface.  Everything is still built, so the rest of this class
+	 * finds what it expects; only the screen is drawn or touched, and it fills
+	 * the view (buildTerminalFrame, mapArea).
+	 */
+	public void setScreenOnly(boolean on)
+	{
+		if(mScreenOnly == on)
+			return;
+		mScreenOnly = on;
+		if(on)
+		{
+			// whatever was open goes with the keys
+			if(mDrawerOpen != null)
+				closeDrawer();
+			dismissPopups();
+		}
+		invalidate();
+		// Posted: this can arrive mid-layout, and children cannot be re-added then.
+		post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				updateFitLimit();
+				rebuild();
+			}
+		});
+	}
+
+	@Override
+	protected boolean drawChild(Canvas canvas, View child, long drawingTime)
+	{
+		if(mScreenOnly && child != mScreen)
+			return false;
+		return super.drawChild(canvas, child, drawingTime);
+	}
+
+	@Override
+	public boolean dispatchTouchEvent(MotionEvent e)
+	{
+		// Screen only: the screen takes a tap on its message band (the history);
+		// what it lets go of reaches the map underneath.
+		if(mScreenOnly)
+			return mScreen != null && mScreen.getVisibility() == VISIBLE && mScreen.dispatchTouchEvent(e);
+		return super.dispatchTouchEvent(e);
 	}
 
 	/**

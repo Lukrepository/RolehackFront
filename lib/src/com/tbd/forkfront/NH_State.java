@@ -542,6 +542,7 @@ public class NH_State
 					// directional overlay never comes up over it.
 					mDPad.forceHide();
 					mCmdPanelLayout.hide();
+					mRolehackUI.setScreenOnly(false);
 					mRolehackUI.setSuppressed(false);
 					mRolehackUI.setExpectsDirection(mIsDPadActive);
 				}
@@ -562,9 +563,15 @@ public class NH_State
 				mCmdPanelLayout.hide();
 				mDPad.forceHide();
 				// The keyboard owns the bottom of the window; the overlay's controls
-				// would ride up into it.
+				// would ride up into it.  The terminal styles keep their screen above
+				// it -- the map with the message and status bands, nothing else -- so
+				// the classic status lines don't come back (RhOverlay.setScreenOnly).
 				if(mRolehackUI != null)
-					mRolehackUI.setSuppressed(true);
+				{
+					boolean screen = isRolehackUIActive() && RhTheme.terminal();
+					mRolehackUI.setScreenOnly(screen);
+					mRolehackUI.setSuppressed(!screen);
+				}
 			}
 		}
 		else
@@ -573,7 +580,10 @@ public class NH_State
 			mKeyboard.hide();
 			mDPad.forceHide();
 			if(mRolehackUI != null)
+			{
+				mRolehackUI.setScreenOnly(false);
 				mRolehackUI.setSuppressed(!(mDialogUp && RhTheme.terminal()));
+			}
 		}
 
 		applyRolehackTopBand();
