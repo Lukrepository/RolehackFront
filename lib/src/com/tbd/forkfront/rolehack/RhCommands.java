@@ -274,10 +274,11 @@ public final class RhCommands
 		 */
 		head("Help and commands"),
 		i("All commands", "#"), i("Help", "?"), i("Version", "V"), i("Repeat", "^A"),
-		// Quit has no key: it opens the command menu and the player picks "quit"
-		// there (typed "#name" sequences misfire on this port: and_get_ext_cmd).
+		// Quit on M-q, its 3.6 key, which the core binds again (cmd.c): it used to
+		// open the command menu for the player to find "quit" there (Lucas,
+		// 2026-09-27).  The core still asks "Really quit?".
 		head("Save / quit"),
-		i("Save", "S"), i("Quit", "#"),
+		i("Save", "S"), i("Quit", "M-q"),
 		head("Settings"),
 		i("Options", "O"), i("All options", "mO"), i("Autopickup", "@"), i("Explore mode", "M-X"),
 		head("Names and notes"),
