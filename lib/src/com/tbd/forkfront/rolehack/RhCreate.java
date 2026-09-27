@@ -27,15 +27,18 @@ import java.util.List;
  * Character creation as keys (Lucas, 2026-09-27: it "should actually feel
  * punchy", and it went by too fast).
  *
- * The core marks the menus that build a character (winandroid.c,
- * rh_creation()): the role, race, gender and alignment picks and vanilla's
- * "Is this ok?".  Each is still an ordinary pick-one menu -- the same entries,
- * letters and answers -- so a keyboard types them exactly as before; nothing
- * here waits or animates.  On the mobile interface the entries are drawn as
- * keys instead of list rows: RhFace keycaps with the overlay's own tap
- * (RhFace.onTap), each with its picture, set out on the dialog's bezel the
- * way a keyboard sits under a screen.  The glass above keeps the menu's title
- * and shows the character so far; at "Is this ok?" it shows the hero.
+ * Player selection is the core's own (role.c, genl_player_setup()), and the
+ * window port marks its pick-one menus (winandroid.c, rh_creation()): role,
+ * race, gender and alignment, and "Is this ok?".  Each is still an ordinary
+ * menu -- the same entries, letters and answers -- so a keyboard types them
+ * exactly as before; nothing here waits or animates.  On the mobile interface
+ * the entries are drawn as keys instead of list rows: RhFace keycaps with the
+ * overlay's own tap (RhFace.onTap), set out on the dialog's bezel the way a
+ * keyboard sits under a screen.  The choices carry their pictures; vanilla's
+ * other entries -- Random, "Pick race first" and its kin, the role filter,
+ * Quit -- are a row of smaller keys under them.  The glass above keeps the
+ * menu's title and vanilla's line of the character so far; at "Is this ok?"
+ * it shows the hero.
  */
 public final class RhCreate
 {
@@ -49,8 +52,8 @@ public final class RhCreate
 	}
 
 	private static final float GAP = 8f;
-	private static final float KEY_W = 128f, KEY_W_NARROW = 124f, KEY_W_ANSWER = 164f;
-	private static final float KEY_H = 78f, KEY_H_PLAIN = 50f;
+	private static final float KEY_W = 128f, KEY_W_NARROW = 124f, KEY_W_ANSWER = 164f, KEY_W_EXTRA = 112f;
+	private static final float KEY_H = 78f, KEY_H_PLAIN = 50f, KEY_H_EXTRA = 44f;
 	private static final float HERO = 96f;
 
 	/** What the core said about the next menu, until a menu takes it. */
@@ -96,10 +99,23 @@ public final class RhCreate
 		ViewParent gp = list.getParent();
 		if(!(gp instanceof LinearLayout) || !(gp.getParent() instanceof LinearLayout))
 			return false;
-		LinearLayout glass = (LinearLayout)gp;
+		final LinearLayout glass = (LinearLayout)gp;
 		LinearLayout box = (LinearLayout)gp.getParent();
-		Context c = root.getContext();
-		boolean confirm = step[0] == CONFIRM;
+		final Context c = root.getContext();
+		final boolean confirm = step[0] == CONFIRM;
+
+		int picks = 0;
+		boolean pictures = false;
+		for(MenuItem item : items)
+		{
+			if(!item.isSelectable())
+				continue;
+			picks++;
+			if(item.getTile() >= 0)
+				pictures = true;
+		}
+		if(picks == 0)
+			return false;
 
 		// The list gives way to the keys; the glass holds only what it says.
 		list.setVisibility(View.GONE);
@@ -120,47 +136,37 @@ public final class RhCreate
 			}
 		}
 
-		int picks = 0;
-		boolean pictures = false;
+		// Vanilla's words that are not choices go on the glass: the character so
+		// far (plsel_startmenu) and what a pick forces ("race forces neutral").
 		for(MenuItem item : items)
 		{
-			if(!item.isSelectable())
-			{
-				// the character so far: vanilla's own line (role.c, plsel_startmenu)
-				TextView t = new TextView(c);
-				t.setText(item.getName());
-				t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16f);
-				t.setGravity(confirm ? Gravity.CENTER_HORIZONTAL : Gravity.START);
-				int pad = RhTheme.dpi(c, 12f);
-				t.setPadding(pad, 0, pad, RhTheme.dpi(c, 8f));
-				RhDialogSkin.onGlass(t, RhTheme.phosphorText());
-				glass.addView(t, new LinearLayout.LayoutParams(
-						ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+			if(item.isSelectable())
 				continue;
-			}
-			picks++;
-			if(item.getTile() >= 0)
-				pictures = true;
+			TextView t = new TextView(c);
+			t.setText(item.getName().trim());
+			t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16f);
+			t.setGravity(confirm ? Gravity.CENTER_HORIZONTAL : Gravity.START);
+			int pad = RhTheme.dpi(c, 12f);
+			t.setPadding(pad, 0, pad, RhTheme.dpi(c, 8f));
+			RhDialogSkin.onGlass(t, RhTheme.phosphorText());
+			glass.addView(t, new LinearLayout.LayoutParams(
+					ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 		}
-		if(picks == 0)
-			return false;
 
-		// The keys: a grid across the bezel, five to a row in landscape and
-		// three in portrait, never wider than the screen.  The activity keeps
-		// itself through a rotation, so this dialog is not built again when the
-		// phone turns; the grid re-flows whenever the dialog's size changes.
-		final Context ctx = c;
-		final float keyH = pictures ? KEY_H : KEY_H_PLAIN;
-		final List<RhFace> keys = new ArrayList<RhFace>();
+		// The keys.  With pictures, the pictured choices are the big keys and
+		// everything else is the row of small ones under them.
+		boolean split = !confirm && pictures;
+		final List<RhFace> main = new ArrayList<RhFace>();
+		final List<RhFace> extra = new ArrayList<RhFace>();
 		for(final MenuItem item : items)
 		{
 			if(!item.isSelectable())
 				continue;
-			// "Yes; start game" breaks at its semicolon, clear of the corner letter
+			boolean small = split && item.getTile() < 0;
 			RhFace key = new RhFace(c)
-					.cap(family(item, confirm))
+					.cap(family(item, confirm, small))
 					.radius(4f)
-					.label(item.getName().replace("; ", ";\n"), 11f, 0f);
+					.label(keyLabel(item), small ? 8f : 11f, 0f);
 			if(item.hasAcc())
 				key.sub(String.valueOf(item.getAcc()), 9f, RhTheme.RAW_KEY_DIM, 1f);
 			if(item.getTile() >= 0)
@@ -178,7 +184,7 @@ public final class RhCreate
 					listener.onPick(item);
 				}
 			});
-			keys.add(key);
+			(small ? extra : main).add(key);
 		}
 
 		final LinearLayout grid = new LinearLayout(c);
@@ -186,6 +192,8 @@ public final class RhCreate
 		// The scroll clips.  A keycap sinks inside its own skirt, so nothing has
 		// to draw past its box -- and rows scrolled up must not draw over the
 		// glass (Lucas, 2026-09-27: in landscape the roles covered the title).
+		// It is as tall as its keys, or as the dialog has room for: the bezel
+		// measures the glass first and the scroll gets what is left.
 		final ScrollView scroll = new ScrollView(c);
 		scroll.setVerticalScrollBarEnabled(false);
 		scroll.addView(grid, new ViewGroup.LayoutParams(
@@ -196,7 +204,11 @@ public final class RhCreate
 		slp.topMargin = RhTheme.dpi(c, 10f);
 		box.addView(scroll, box.indexOfChild(glass) + 1, slp);
 
-		final boolean isConfirm = confirm;
+		// Five to a row in landscape and three in portrait, never wider than the
+		// screen.  The activity keeps itself through a rotation, so this dialog
+		// is not built again when the phone turns: the keys re-flow whenever the
+		// dialog's size changes.
+		final float mainH = pictures ? KEY_H : KEY_H_PLAIN;
 		final View dialog = root;
 		final Runnable flow = new Runnable()
 		{
@@ -205,7 +217,7 @@ public final class RhCreate
 			@Override
 			public void run()
 			{
-				DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
+				DisplayMetrics dm = c.getResources().getDisplayMetrics();
 				int w = dialog.getWidth(), h = dialog.getHeight();
 				if(w <= 0 || h <= 0)
 				{
@@ -216,7 +228,18 @@ public final class RhCreate
 					return;
 				mW = w;
 				mH = h;
-				flowKeys(ctx, grid, scroll, keys, isConfirm, keyH, w / dm.density, h / dm.density);
+				float wDp = w / dm.density, hDp = h / dm.density;
+				boolean narrow = hDp > wDp;
+				// the dialog's own margins: 10dp round the bezel, 12dp inside it
+				float avail = wDp - 2 * 10f - 2 * 12f;
+				grid.removeAllViews();
+				float width = flowKeys(c, grid, main, confirm ? main.size() : narrow ? 3 : 5,
+						narrow ? KEY_W_NARROW : confirm ? KEY_W_ANSWER : KEY_W, mainH, avail);
+				width = Math.max(width, flowKeys(c, grid, extra, narrow ? 3 : 6,
+						narrow ? KEY_W_NARROW : KEY_W_EXTRA, KEY_H_EXTRA, avail));
+				ViewGroup.LayoutParams lp = scroll.getLayoutParams();
+				lp.width = RhTheme.dpi(c, width);
+				scroll.setLayoutParams(lp);
 			}
 		};
 		flow.run();
@@ -232,33 +255,33 @@ public final class RhCreate
 		return true;
 	}
 
-	/** Lay the keys out in rows for a dialog this size (dp), and size the scroll to them. */
-	private static void flowKeys(Context c, LinearLayout grid, ScrollView scroll, List<RhFace> keys,
-	                             boolean confirm, float keyH, float screenW, float screenH)
+	/**
+	 * Add one group of keys to the grid in centred rows, at most maxCols to a
+	 * row and each key at most widest dp.  Returns the widest row, dp.
+	 */
+	private static float flowKeys(Context c, LinearLayout grid, List<RhFace> keys, int maxCols,
+	                              float widest, float keyH, float avail)
 	{
 		int n = keys.size();
-		boolean narrow = screenH > screenW;
-		int cols = confirm ? n : Math.min(n, narrow ? 3 : 5);
-		// the dialog's own margins: 10dp round the bezel, 12dp inside it
-		float avail = screenW - 2 * 10f - 2 * 12f;
-		// the three answers take more room where there is some: "No; choose role again"
-		float widest = narrow ? KEY_W_NARROW : confirm ? KEY_W_ANSWER : KEY_W;
+		if(n == 0)
+			return 0f;
+		int cols = Math.min(n, maxCols);
 		float keyW = Math.min(widest, (avail - (cols - 1) * GAP) / cols);
-		int rows = (n + cols - 1) / cols;
 
-		for(int i = 0; i < grid.getChildCount(); i++)
-			((ViewGroup)grid.getChildAt(i)).removeAllViews();
-		grid.removeAllViews();
 		LinearLayout row = null;
 		for(int i = 0; i < n; i++)
 		{
+			RhFace key = keys.get(i);
+			if(key.getParent() instanceof ViewGroup)
+				((ViewGroup)key.getParent()).removeView(key);
 			if(i % cols == 0)
 			{
 				row = new LinearLayout(c);
 				row.setOrientation(LinearLayout.HORIZONTAL);
 				LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
 						ViewGroup.LayoutParams.WRAP_CONTENT, RhTheme.dpi(c, keyH));
-				if(i > 0)
+				rlp.gravity = Gravity.CENTER_HORIZONTAL;
+				if(grid.getChildCount() > 0)
 					rlp.topMargin = RhTheme.dpi(c, GAP);
 				grid.addView(row, rlp);
 			}
@@ -266,31 +289,42 @@ public final class RhCreate
 					RhTheme.dpi(c, keyW), ViewGroup.LayoutParams.MATCH_PARENT);
 			if(i % cols != 0)
 				klp.leftMargin = RhTheme.dpi(c, GAP);
-			row.addView(keys.get(i), klp);
+			row.addView(key, klp);
 		}
-
-		float gridH = rows * keyH + (rows - 1) * GAP;
-		// what the glass and the dialog's margins leave of the screen's height
-		float room = screenH - (confirm ? 250f : 150f);
-		ViewGroup.LayoutParams slp = scroll.getLayoutParams();
-		slp.width = RhTheme.dpi(c, cols * keyW + (cols - 1) * GAP);
-		slp.height = gridH > room ? RhTheme.dpi(c, Math.max(room, keyH)) : ViewGroup.LayoutParams.WRAP_CONTENT;
-		scroll.setLayoutParams(slp);
+		return cols * keyW + (cols - 1) * GAP;
 	}
 
 	/**
-	 * A key's colour.  Entries are the keyboard's letters: cream on the
-	 * Terminal skins, grey on the GameCube.  Random is a dark key; the default
-	 * answer -- "Yes; start game", the one Enter presses -- is amber, as a
-	 * dialog's OK is; and Quit at "Is this ok?" is red.
+	 * What a key says.  Vanilla writes a role as an("Archeologist"); under its
+	 * picture the article is only clutter.  "Yes; start game" breaks at its
+	 * semicolon, clear of the corner letter.
 	 */
-	private static int[] family(MenuItem item, boolean confirm)
+	private static String keyLabel(MenuItem item)
+	{
+		String name = item.getName();
+		if(item.getTile() >= 0)
+		{
+			if(name.startsWith("an "))
+				name = name.substring(3);
+			else if(name.startsWith("a "))
+				name = name.substring(2);
+		}
+		return name.replace("; ", ";\n");
+	}
+
+	/**
+	 * A key's colour.  The choices are the keyboard's letters: cream on the
+	 * Terminal skins, grey on the GameCube.  The small keys under them are
+	 * dark.  The default -- Random, or "Yes; start game", the one Enter
+	 * presses -- is amber, as a dialog's OK is; Quit is red.
+	 */
+	private static int[] family(MenuItem item, boolean confirm, boolean small)
 	{
 		if(item.isSelected())
 			return RhTheme.capFor(RhTheme.A90);
-		if(confirm && item.getAcc() == 'q')
+		if(item.getAcc() == 'q' && "Quit".equals(item.getName()))
 			return RhTheme.capFor(RhTheme.R90);
-		if(item.getAcc() == '*')
+		if(small)
 			return RhTheme.capFor(RhTheme.G90);
 		return RhTheme.gamecube() ? RhTheme.GC_GREY : RhTheme.CAP_CREAM;
 	}
