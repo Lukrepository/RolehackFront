@@ -38,6 +38,8 @@ public class RhDrawer extends FrameLayout
 		 * never restored.  It also gives pinning a discoverable home.
 		 */
 		void onItemPin(RhCommands.Item item);
+		/** DEFAULTS, shown while assigning: put the keys back as they shipped. */
+		void onRestoreDefaults();
 		void onDismiss();
 	}
 
@@ -48,6 +50,9 @@ public class RhDrawer extends FrameLayout
 	private static final float GAP        = 6f;
 	private static final float ITEM_H     = 46f;
 	private static final int   COLUMNS    = 4;
+	/** A section heading's row, and the space above one that follows keys. */
+	private static final float HEADING_H   = 20f;
+	private static final float HEADING_GAP = 6f;
 	/** Portrait: 604dp does not fit a phone's width, so three columns in 420. */
 	private static final float NARROW_WIDTH      = 420f;
 	private static final float NARROW_MAX_HEIGHT = 520f;
@@ -67,6 +72,8 @@ public class RhDrawer extends FrameLayout
 	 * did that all along, but nothing on screen said so.
 	 */
 	private final RhFace mAssign;
+	/** Beside ASSIGN while it is lit (Lucas, 2026-09-26): restore the shipped keys. */
+	private final RhFace mDefaults;
 	private boolean mAssigning;
 	private String mCount = "";
 
@@ -121,6 +128,22 @@ public class RhDrawer extends FrameLayout
 		alp.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
 		alp.rightMargin = RhTheme.dpi(context, 4f);
 		titleRow.addView(mAssign, alp);
+		mDefaults = new RhFace(context).radius(3f).label("DEFAULTS", 8.5f, 0.08f);
+		FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(
+				RhTheme.dpi(context, 76f), RhTheme.dpi(context, TITLE_H - 6f));
+		dlp.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
+		dlp.rightMargin = RhTheme.dpi(context, 4f + 84f + 6f);
+		titleRow.addView(mDefaults, dlp);
+		mDefaults.setVisibility(GONE);
+		mDefaults.setOnClickListener(new OnClickListener()
+		{
+			@Override
+			public void onClick(View v)
+			{
+				RhFeedback.press(v);
+				mListener.onRestoreDefaults();
+			}
+		});
 		mAssign.setOnClickListener(new OnClickListener()
 		{
 			@Override
@@ -154,7 +177,11 @@ public class RhDrawer extends FrameLayout
 	 */
 	public void show(RhCommands.Group group, RhCommands.Item[] items)
 	{
-		mCount = items.length + " commands";
+		int commands = 0;
+		for(RhCommands.Item it : items)
+			if(!it.heading)
+				commands++;
+		mCount = commands + " commands";
 		setAssigning(false);
 		mTitle.set(group.title, mCount);
 		mGrid.removeAllViews();
@@ -162,33 +189,53 @@ public class RhDrawer extends FrameLayout
 		int gap = RhTheme.dpi(mContext, GAP);
 		int itemH = RhTheme.dpi(mContext, ITEM_H);
 		LinearLayout row = null;
+		// the column the next key goes in; a heading starts the next row afresh
+		int col = 0;
 
 		for(int i = 0; i < items.length; i++)
 		{
-			if(i % mColumns == 0)
+			final RhCommands.Item item = items[i];
+			if(item.heading)
+			{
+				padRow(row, col, gap, itemH);
+				row = null;
+				col = 0;
+				Heading h = new Heading(mContext, item.word);
+				LinearLayout.LayoutParams hLp = new LinearLayout.LayoutParams(
+						ViewGroup.LayoutParams.MATCH_PARENT, RhTheme.dpi(mContext, HEADING_H));
+				if(mGrid.getChildCount() > 0)
+					hLp.topMargin = RhTheme.dpi(mContext, HEADING_GAP);
+				mGrid.addView(h, hLp);
+				continue;
+			}
+			if(col == 0)
 			{
 				row = new LinearLayout(mContext);
 				row.setOrientation(LinearLayout.HORIZONTAL);
 				LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
 						ViewGroup.LayoutParams.MATCH_PARENT, itemH);
-				if(i > 0)
+				if(mGrid.getChildCount() > 0)
 					rowLp.topMargin = gap;
 				mGrid.addView(row, rowLp);
 			}
 
-			final RhCommands.Item item = items[i];
 			final RhFace f = new RhFace(mContext)
 					.face(item.face != null ? item.face : RhTheme.G90)
 					.radius(4f)
 					.uppercase(false)
 					.outfitLabel(true)
-					.label(item.word, 11f, 0f)
-					.sub(item.key, 9f, RhTheme.RAW_KEY_DIM, 1f);
+					.label(item.word, 11f, 0f);
+			// A tag ("BETA") takes the corner the raw key would have.
+			if(item.tag != null)
+				f.tag(item.tag);
+			else
+				f.sub(item.key, 9f, RhTheme.RAW_KEY_DIM, 1f);
 
 			LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, itemH, 1f);
-			if(i % mColumns != 0)
+			if(col != 0)
 				lp.leftMargin = gap;
 			row.addView(f, lp);
+			col = (col + 1) % mColumns;
 
 			f.setOnClickListener(new OnClickListener()
 			{
@@ -214,20 +261,59 @@ public class RhDrawer extends FrameLayout
 			});
 		}
 
-		// Pad the last row so three items do not stretch across four columns.
-		int remainder = items.length % mColumns;
-		if(remainder != 0 && row != null)
-		{
-			for(int i = remainder; i < mColumns; i++)
-			{
-				View spacer = new View(mContext);
-				LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, itemH, 1f);
-				lp.leftMargin = gap;
-				row.addView(spacer, lp);
-			}
-		}
+		padRow(row, col, gap, itemH);
 
 		setVisibility(VISIBLE);
+	}
+
+	/** Pad a part-filled row, so three keys do not stretch across four columns. */
+	private void padRow(LinearLayout row, int col, int gap, int itemH)
+	{
+		if(row == null || col == 0)
+			return;
+		for(int i = col; i < mColumns; i++)
+		{
+			View spacer = new View(mContext);
+			LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, itemH, 1f);
+			lp.leftMargin = gap;
+			row.addView(spacer, lp);
+		}
+	}
+
+	/**
+	 * A section's heading across the drawer (Lucas, 2026-09-26): its name in
+	 * small capitals, the lettering of the drawer's title bar, and a hairline
+	 * running on to the right edge.
+	 */
+	private static final class Heading extends View
+	{
+		private final String mText;
+		private final android.graphics.Paint mPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+		Heading(Context c, String text)
+		{
+			super(c);
+			mText = text.toUpperCase(java.util.Locale.ROOT);
+			mPaint.setTypeface(RhTheme.capFont(c));
+			mPaint.setTextSize(RhTheme.dp(c, 9.5f));
+			if(android.os.Build.VERSION.SDK_INT >= 21)
+				mPaint.setLetterSpacing(0.16f);
+			setContentDescription(text);
+		}
+
+		@Override
+		protected void onDraw(Canvas canvas)
+		{
+			float h = getHeight();
+			android.graphics.Paint.FontMetrics fm = mPaint.getFontMetrics();
+			float base = h - RhTheme.dp(getContext(), 4f) - fm.descent;
+			mPaint.setColor(0x9effffff);
+			canvas.drawText(mText, RhTheme.dp(getContext(), 2f), base, mPaint);
+			float x = RhTheme.dp(getContext(), 2f) + mPaint.measureText(mText) + RhTheme.dp(getContext(), 8f);
+			float y = base - (fm.ascent + fm.descent) / 2f;
+			mPaint.setColor(0x33ffffff);
+			canvas.drawRect(x, y, getWidth(), y + Math.max(1f, RhTheme.dp(getContext(), 1f)), mPaint);
+		}
 	}
 
 	public void hide()
@@ -254,6 +340,7 @@ public class RhDrawer extends FrameLayout
 		       .textColor(on ? RhTheme.BADGE_TEXT : RhTheme.TEXT)
 		       .label(on ? "ASSIGNING" : "ASSIGN", 8.5f, 0.08f);
 		mTitle.setCount(on ? "tap a command to pin it" : mCount);
+		mDefaults.setVisibility(on ? VISIBLE : GONE);
 	}
 
 	// ____________________________________________________________________________________

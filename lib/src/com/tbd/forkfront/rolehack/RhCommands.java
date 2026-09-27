@@ -37,6 +37,14 @@ public final class RhCommands
 		 * command has no second form.
 		 */
 		public final String altKey;
+		/**
+		 * A section heading in a drawer (Lucas, 2026-09-26): a title over the
+		 * keys that follow, not a key.  It has no key, is never pinned, and the
+		 * drawer's command count leaves it out.
+		 */
+		public final boolean heading;
+		/** A word for the key's corner in place of its raw key -- "BETA". */
+		public final String tag;
 
 		public Item(String word, String key)
 		{
@@ -50,10 +58,17 @@ public final class RhCommands
 
 		public Item(String word, String key, int[] face, String altKey)
 		{
+			this(word, key, face, altKey, false, null);
+		}
+
+		private Item(String word, String key, int[] face, String altKey, boolean heading, String tag)
+		{
 			this.word = word;
 			this.key = key;
 			this.face = face;
 			this.altKey = altKey;
+			this.heading = heading;
+			this.tag = tag;
 		}
 
 		public boolean hasAlt()
@@ -81,9 +96,14 @@ public final class RhCommands
 			this.items = items;
 		}
 
+		/** The commands, headings left out. */
 		public int count()
 		{
-			return items.length;
+			int n = 0;
+			for(Item it : items)
+				if(!it.heading)
+					n++;
+			return n;
 		}
 	}
 
@@ -92,6 +112,16 @@ public final class RhCommands
 	private static Item alt(String word, String key, String altKey)
 	{
 		return new Item(word, key, null, altKey);
+	}
+	/** A drawer section's heading. */
+	private static Item head(String title)
+	{
+		return new Item(title, null, null, null, true, null);
+	}
+	/** A command still being tried out: "BETA" in its corner. */
+	private static Item beta(String word, String key)
+	{
+		return new Item(word, key, null, null, false, "BETA");
 	}
 
 	// ____________________________________________________________________________________
@@ -128,13 +158,21 @@ public final class RhCommands
 	 * the radial carries the three that take a direction, and the rest of the
 	 * offensive vocabulary is one level deeper.
 	 */
-	public static final Group FIGHT = new Group("fight", "OFFENSE", new Item[] {
+	// COMBAT, not OFFENSE (Lucas, 2026-09-26): "fight" and "attack" each name one
+	// command already (F, and the context key's Attack), and the drawer holds more
+	// than attacks -- Quiver, Zap, Cast.  "Combat" is the game's own word, from
+	// the skills "bare handed combat" and "two weapon combat" (weapon.c).
+	public static final Group FIGHT = new Group("fight", "COMBAT", new Item[] {
 		// Quiver belongs with fighting at range: long-press OFFENSE and change what
 		// f fires (Lucas, 2026-09-23).  It stays in the EQUIP drawer as well.
 		i("Quiver", "Q"),
 		i("Fight", "F", RhTheme.R90), i("Kick", "^D", RhTheme.R90), i("Fire", "f"),
 		i("Throw", "t"), i("Zap wand", "z"), i("Cast spell", "Z"),
 		i("Turn undead", "M-t"),
+		// Rolehack's #grapple, which had no key and could only be picked from the
+		// command menu; the core binds it to M-G (cmd.c).  Appended, so nothing
+		// above moves (Lucas, 2026-09-26).
+		i("Grapple", "M-G", RhTheme.R90),
 	});
 
 	/**
@@ -144,7 +182,8 @@ public final class RhCommands
 	 * gone and ATTACK no longer owns steel, so wield, swap and two-weapon belong
 	 * with the armor and accessory commands rather than with violence.
 	 */
-	public static final Group EQUIP = new Group("equip", "EQUIP", new Item[] {
+	// Titled for the key that opens it (Lucas, 2026-09-26).
+	public static final Group EQUIP = new Group("equip", "INVENTORY", new Item[] {
 		i("Wield", "w"), i("Unwield", "w-", RhTheme.OFF90), i("Swap", "x"),
 		i("Two-weapon", "X", RhTheme.A90), i("Ready quiver", "Q"),
 		i("Wear armor", "W"), i("Take off", "T", RhTheme.OFF90),
@@ -171,7 +210,7 @@ public final class RhCommands
 	 * never sent to the core, and PINNABLE drops it so a pinned copy cannot send
 	 * "s" and then "+" by accident.
 	 */
-	public static final Item SEARCH_MODE = i("Search mode", "s+");
+	public static final Item SEARCH_MODE = beta("Search mode", "s+");
 
 	/**
 	 * The terminal's case, on or off (RhTheme.caseless).  Intercepted like Search
@@ -186,21 +225,40 @@ public final class RhCommands
 	 */
 	public static final Item STATUS_TOGGLE = i("Status lines", "#status");
 
+	/*
+	 * WORLD and GAME are the long tail: the common commands have their own keys,
+	 * so these two are for finding a command, not for speed (Lucas, 2026-09-26,
+	 * from 4,520 commands counted in the playtest transcripts; see
+	 * drawer-plan-2026-09-26.html).  Sections run from most to least used, and
+	 * so do the keys in each, except that pairs stay together and Quit and
+	 * Explore mode go last.  Keys that also have their own face stay here, where
+	 * a player looks when the key has slipped their mind.
+	 */
 	public static final Group WORLD = new Group("world", "WORLD", new Item[] {
-		i("Pick up", ","), i("Open door", "o"), i("Close door", "c"), i("Search", "s"),
-		SEARCH_MODE,
-		i("Rest one", "."), i("Travel", "_"), i("Go down", ">"), i("Go up", "<"),
-		i("Loot box", "M-l"), i("Force lock", "M-f"), i("Untrap", "M-u"), i("Engrave", "E"),
-		i("Chat", "M-c"), i("Pay bill", "p"), i("Sacrifice", "M-o"), i("Sit", "M-s"),
-		i("Jump", "M-j"), i("Teleport", "^T"), i("Ride", "M-R"), i("Monster power", "M-m"),
-		i("Wipe face", "M-w"),
-		// From the old LOOK drawer, which lost its button with the bottom row
-		// and was never reachable (Lucas, 2026-09-25).  Appended, so nothing above
-		// moves.  Terrain is DEL in 5.0 (cmd.c '\177'), written \b for KeySequnece.
-		i("Adjacent trap", "^"), i("Terrain", "\\b"),
+		head("Getting around"),
+		i("Travel", "_"), i("Go up", "<"), i("Go down", ">"), i("Jump", "M-j"),
+		i("Teleport", "^T"), i("Ride", "M-R"),
+		head("Search / wait"),
+		i("Rest one", "."), i("Search", "s"), SEARCH_MODE,
+		// NetHack's own word for what you can do on your square (#herecmdmenu)
+		head("Here"),
+		i("Pick up", ","), i("Engrave", "E"), i("Loot box", "M-l"), i("Pay bill", "p"),
+		i("Force lock", "M-f"), i("Sit", "M-s"), i("Sacrifice", "M-o"),
+		i("Monster power", "M-m"), i("Wipe face", "M-w"),
+		// Commands that ask for a direction.  Kick opens locked boxes and doors
+		// as well as fighting, so it is here as well as on OFFENSE.
+		head("Adjacent"),
+		i("Open door", "o"), i("Close door", "c"), i("Kick", "^D"), i("Chat", "M-c"),
+		i("Untrap", "M-u"), i("Adjacent trap", "^"),
 	});
 
 	public static final Group GAME = new Group("game", "GAME", new Item[] {
+		head("Knowledge"),
+		i("Discoveries", "\\"), i("Past messages", "^P"), i("Attributes", "^X"), i("Chronicle", "v"),
+		i("Enhance skills", "M-e"), i("What is", "/"), i("Known spells", "+"),
+		// Terrain is DEL in 5.0 (cmd.c '\177'), written \b for KeySequnece.
+		i("Terrain", "\\b"), i("Overview", "M-O"), i("Genocided", "M-g"), i("Vanquished", "M-V"),
+		i("Conduct", "M-C"), i("All equipment", "*"),
 		/*
 		 * The safety net.  `#` opens the core's own command menu, built from
 		 * extcmdlist rather than from anything in this file -- so a command this
@@ -209,23 +267,18 @@ public final class RhCommands
 		 * single-key commands included, and it hides the wizard entries outside
 		 * debug mode on its own.
 		 */
-		i("All commands", "#"),
-		CASE_TOGGLE, STATUS_TOGGLE,
-		i("Options", "O"), i("All options", "mO"), i("Save", "S"), i("Help", "?"),
-		i("Annotate", "M-A"), i("Call/name", "C"), i("Name type", "M-n"), i("Autopickup", "@"),
-		i("Repeat", "^A"), i("Redraw", "^R"), i("Version", "V"),
-		// Typed "#name" sequences misfire: '#' opens the command menu
-		// (winandroid.c and_get_ext_cmd), and the letters that follow pick menu
-		// entries by accelerator (NHW_Menu.menuSelect): "#quit" would pick
-		// #monster and hand the rest to the game as commands.  Explore mode is
-		// M-X in 5.0.  Quit has no key, so it opens the menu and the player
-		// picks "quit" there.
-		i("Explore mode", "M-X"), i("Quit", "#"),
-		// What you know, from the old LOOK drawer (see WORLD).  Appended after
-		// the existing keys so none of them moves; the most asked-for first.
-		i("Overview", "M-O"), i("Enhance skills", "M-e"), i("Discoveries", "\\"), i("Attributes", "^X"),
-		i("Genocided", "M-g"), i("Vanquished", "M-V"), i("Chronicle", "v"), i("Conduct", "M-C"),
-		i("Past messages", "^P"), i("Known spells", "+"), i("All equipment", "*"), i("What is", "/"),
+		head("Help and commands"),
+		i("All commands", "#"), i("Help", "?"), i("Version", "V"), i("Repeat", "^A"),
+		// Quit has no key: it opens the command menu and the player picks "quit"
+		// there (typed "#name" sequences misfire on this port: and_get_ext_cmd).
+		head("Save / quit"),
+		i("Save", "S"), i("Quit", "#"),
+		head("Settings"),
+		i("Options", "O"), i("All options", "mO"), i("Autopickup", "@"), i("Explore mode", "M-X"),
+		head("Names and notes"),
+		i("Call/name", "C"), i("Name type", "M-n"), i("Annotate", "M-A"),
+		head("Display"),
+		CASE_TOGGLE, STATUS_TOGGLE, i("Redraw", "^R"),
 	});
 
 	// ____________________________________________________________________________________
@@ -241,12 +294,14 @@ public final class RhCommands
 	// and the other drives it randomly, and neither belongs one tap from a face.
 
 	public static final Item[] WIZ_WORLD = {
+		head("Wizard mode"),
 		i("Map level", "^F"), i("Detect near", "^E"), i("Create mon", "^G"),
 		i("Levelport", "^V"), i("Remake level", "#wizmakemap\n"),
 		i("Where am I", "#wizwhere\n"), i("Flip level", "#wizfliplevel\n"),
 	};
 
 	public static final Item[] WIZ_GAME = {
+		head("Wizard mode"),
 		i("Wish", "^W"), i("Identify all", "^I"), i("Set intrinsic", "#wizintrinsic\n"),
 		i("Level change", "#levelchange\n"), i("Polyself", "#polyself\n"),
 		i("Kill monster", "#wizkill\n"), i("Show stats", "#stats\n"),
@@ -353,13 +408,20 @@ public final class RhCommands
 	 * width, since the key size is a preference.  It is sized to one pad cell as
 	 * well (RhOverlay.hubW), so it grows with the Movement key size setting.
 	 */
-	public static final Hub HUB_ATTACK = new Hub("fight", "OFFENSE", RhTheme.R90,
-		i("Inventory", "i"),   /* unused: the tap opens the radial */
-		new Item[0], FIGHT,
+	public static final Hub HUB_ATTACK = new Hub("fight", "COMBAT", RhTheme.R90,
+		// The ordinary hub grammar since the flick moved to its own key (Lucas,
+		// 2026-09-26): tap Fight, whose direction the pad gives; hold for the fan;
+		// tap the open fan for the drawer.
+		i("Fight", "F", RhTheme.R90),
+		new Item[] {
+			i("Fire", "f"), i("Throw", "t"), i("Zap", "z"), i("Cast", "Z"),
+		}, FIGHT,
 		193f, 62f, 46f, 46f,
 		RhFaceShapes.STAR12, 2f, 2f, 2f, 2f, -1f,
-		7f, 0.02f, 0f, 0f,
-		0f, 0f, 0f, true);
+		8f, 0.02f, 0f, 0f,
+		// Up from the deck, over the glass: nothing on this side is under the
+		// thumb that holds it.
+		-100f, 26f, 100f, true);
 
 	/**
 	 * Flush to the left edge, stacked directly under the PRAY/SACRIFICE column.
@@ -383,11 +445,13 @@ public final class RhCommands
 		-64f, 32f, 110f, true);
 
 	/**
-	 * APPLY became INTERACT and took the dungeon verbs.  The rename is the point:
-	 * the hub is now about acting on the world rather than on an item, which is
-	 * why it is also the hub that carries no colour of its own.
+	 * APPLY became INTERACT when it took the dungeon verbs, and is APPLY again
+	 * (Lucas, 2026-09-26): Open went to the context key and the dungeon verbs to
+	 * WORLD, so the key is about items once more.  A tap is `a`, which the core
+	 * calls "apply (use) a tool", so the label says what the tap does, and its
+	 * drawer stays USE -- the game's own pairing.
 	 */
-	public static final Hub HUB_INTERACT = new Hub("apply", "INTERACT", RhTheme.G90,
+	public static final Hub HUB_INTERACT = new Hub("apply", "APPLY", RhTheme.G90,
 		i("Apply", "a"),
 		new Item[] {
 			// Open left the fan (Lucas, 2026-09-24): the context key offers it beside
@@ -486,7 +550,7 @@ public final class RhCommands
 	 * -- the thumb's outward, extension side, which is its accurate side
 	 * (Trudeau et al. 2012); nothing points back toward the pad.
 	 */
-	public static final float[] ATK_SLOT_BEARING = { -85f, -40f, 5f };
+	public static final float[] ATK_SLOT_BEARING = { -85f, -40f };
 	public static final float   ATK_SLOT_RADIUS  = 96f;
 
 	/**
@@ -496,22 +560,17 @@ public final class RhCommands
 	 * position the radial showed it, which is the point of putting both on the
 	 * same arc.
 	 */
-	public static final String[] ATK_SLOT_DEFAULT = { null, null, null };
+	public static final String[] ATK_SLOT_DEFAULT = { null, null };
 
 	/**
-	 * OFFENSE's radial, on the same bearings and radius as the pinnable points
-	 * they can be promoted into.  Order matters -- it is the wedge order for the
-	 * flick: Fight up, Kick up-and-right.
-	 *
-	 * Two, not three (Lucas, 2026-09-24).  The third wedge, Fire to the right,
-	 * was the hard one to reach, and three flicks plus the pinned keys was more
-	 * to keep in the hand than combat needs: a fight is as often settled by
-	 * engraving, reading, quaffing or rubbing a lamp.  Fire stays in the drawer
-	 * and can be pinned.  With two nodes each wedge widens to about 60 degrees.
+	 * The flick key (Lucas, 2026-09-26): the deck's third pinned point became a
+	 * macro key that also flicks.  Its tap and its two flicks are macros -- see
+	 * RhPrefs.FLICK_TAP -- so a command lands on it the way it lands on M1-M3.
+	 * The flicks are the old OFFENSE ones, up and up-and-right: two wedges of
+	 * about 60 degrees each, where three were hard to hit.
 	 */
-	public static final Item[] OFFENSE_RADIAL = {
-		i("Fight", "F", RhTheme.R90), i("Kick", "^D", RhTheme.R90),
-	};
+	public static final float[] FLICK_BEARING = { -85f, -40f };
+	public static final float   FLICK_RADIUS  = 96f;
 
 	/** The old triangle's satellite geometry; nothing is placed with it since 2026-09-23. */
 	public static final float[] EQUIP_SAT_BEARING = { 200f, 340f, 90f };
@@ -760,7 +819,8 @@ public final class RhCommands
 	{
 		for(Group g : GROUPS.values())
 			for(Item it : g.items)
-				PINNABLE.put(it.key, it);
+				if(!it.heading)
+					PINNABLE.put(it.key, it);
 
 		for(Hub h : HUBS)
 			for(Item it : h.fan)

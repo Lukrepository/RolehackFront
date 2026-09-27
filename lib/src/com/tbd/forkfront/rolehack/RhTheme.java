@@ -42,6 +42,13 @@ public final class RhTheme
 	 * which is why it does not wear a command colour.
 	 */
 	public static final int[] VIOLET = { 0xff1a1030, 0xff5a4a9c };
+	/**
+	 * Macros (Lucas, 2026-09-26): every key the player programs wears one colour,
+	 * so a key that runs whatever was put on it reads apart from the keys whose
+	 * meaning is fixed.  Jade on the Terminal skins, the Emerald Blue GameCube's
+	 * teal on GameCube.
+	 */
+	public static final int[] JADE = { 0xff0a2e28, 0xff1e8f7a };
 
 	// ____________________________________________________________________________________
 	// Condition badges, by how much they should alarm you.
@@ -110,6 +117,9 @@ public final class RhTheme
 	public static final int[] CAP_TEAL  = withLegend(CAP_DARK, 0xff5fd8c9);
 	public static final int[] CAP_ROSE  = withLegend(CAP_DARK, 0xfff08bb6);
 	public static final int[] CAP_LAV   = withLegend(CAP_DARK, 0xffc2b6ff);
+	/** Macros on the Terminal skins: a muted jade plastic, legends dark (about 5.9:1). */
+	public static final int[] CAP_JADE  = { 0xff8cc9b8, 0xff6aae9b, 0xff65a592, 0xff5a9a88, 0xff3f7566,
+	                                        0xff0f2a24, 0xff0f2a24, 0xff1f4a40 };
 
 	// GameCube.  Saturated plastics: the C-stick's yellow, a primary red and blue,
 	// the X/Y buttons' pale grey, and a hotter red and orange than the terminal's
@@ -142,6 +152,9 @@ public final class RhTheme
 	                                             0xff2a1000, 0xfffff0dc, 0xff4a1e00 };
 	public static final int[] GC_ROSE   = withLegend(GC_DARK, 0xffff8fc0);
 	public static final int[] GC_LAV    = withLegend(GC_DARK, 0xffc8bcff);
+	/** Macros on GameCube: the Emerald Blue edition's teal, legends dark (about 7:1). */
+	public static final int[] GC_EMERALD = { 0xff4fe0c4, 0xff12b89c, 0xff16b598, 0xff11a88e, 0xff0a7a66,
+	                                         0xff032b24, 0xff032b24, 0xff04382f };
 
 	public static final int CAP_T1 = 0, CAP_T2 = 1, CAP_SL = 2, CAP_SM = 3, CAP_SR = 4,
 	                        CAP_LEGEND = 5, CAP_HOLD = 6, CAP_RAW = 7;
@@ -163,6 +176,7 @@ public final class RhTheme
 		if(face == TEAL)   return gc ? GC_TEAL : CAP_TEAL;
 		if(face == PINK)   return gc ? GC_ROSE : CAP_ROSE;
 		if(face == VIOLET) return gc ? GC_LAV  : CAP_LAV;
+		if(face == JADE)   return gc ? GC_EMERALD : CAP_JADE;
 		return gc ? GC_DARK : CAP_DARK;
 	}
 

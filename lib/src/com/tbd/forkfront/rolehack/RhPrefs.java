@@ -83,7 +83,14 @@ public final class RhPrefs
 	 * the first slot keeps what it held.
 	 */
 	public static final int MACRO_SLOTS = 3;
-	private static String[] sMacros = new String[2 * MACRO_SLOTS];
+	/**
+	 * The flick key's three macros follow M1-M3 in the same store: its tap, its
+	 * flick up and its flick up-and-right.  Out of the box the flick up is Kick
+	 * (Lucas, 2026-09-26), the door-kicking flick OFFENSE used to have.
+	 */
+	public static final int FLICK_TAP = 3;
+	public static final int MACRO_STORE = 6;
+	private static String[] sMacros = new String[2 * MACRO_STORE];
 
 	public static void load(SharedPreferences prefs)
 	{
@@ -92,9 +99,10 @@ public final class RhPrefs
 		sSearchCount  = Math.max(1, Math.min(9, prefs.getInt(KEY_SEARCH_COUNT, 1)));
 		String macros = prefs.getString(KEY_MACROS, "");
 		String[] parts = macros.length() == 0 ? new String[0] : macros.split("\n", -1);
-		sMacros = new String[2 * MACRO_SLOTS];
+		sMacros = new String[2 * MACRO_STORE];
 		for(int i = 0; i < sMacros.length; i++)
 			sMacros[i] = i < parts.length ? parts[i] : "";
+		boolean flickNew = parts.length <= 2 * FLICK_TAP;
 		sEnabled   = prefs.getBoolean(KEY_ENABLED, true);
 		sKeyFlash  = prefs.getBoolean(KEY_KEY_FLASH, true);
 		sPaperDoll = prefs.getBoolean(KEY_PAPER_DOLL, true);
@@ -102,8 +110,26 @@ public final class RhPrefs
 		sStatusLines = parseStatusLines(prefs.getString(KEY_STATUS_LINES, "full"));
 		sPadCell   = parseInt(prefs.getString(KEY_PAD_CELL, null),
 		                      PAD_CELL_DEFAULT, PAD_CELL_MIN, PAD_CELL_MAX);
-		sAtkSlots   = parseSlots(prefs.getString(KEY_ATK_SLOTS, null),
-		                         RhCommands.ATK_SLOT_DEFAULT);
+		// Read three points, as stored before the flick key took the third.
+		String[] atk = parseSlots(prefs.getString(KEY_ATK_SLOTS, null),
+		                          new String[] { null, null, null });
+		sAtkSlots = new String[RhCommands.ATK_SLOT_DEFAULT.length];
+		for(int i = 0; i < sAtkSlots.length; i++)
+			sAtkSlots[i] = prefs.contains(KEY_ATK_SLOTS) ? atk[i] : RhCommands.ATK_SLOT_DEFAULT[i];
+		if(flickNew)
+		{
+			// First run with the flick key: Kick on the flick up, and whatever the
+			// retired third point held moves onto the key's tap.
+			sMacros[2 * (FLICK_TAP + 1)]     = "Kick";
+			sMacros[2 * (FLICK_TAP + 1) + 1] = "^D";
+			RhCommands.Item moved = atk[2] != null ? RhCommands.pinnable(atk[2]) : null;
+			if(moved != null)
+			{
+				sMacros[2 * FLICK_TAP]     = moved.word;
+				sMacros[2 * FLICK_TAP + 1] = moved.key;
+			}
+			writeMacros(prefs);
+		}
 		sEquipSlots = parseSlots(prefs.getString(KEY_EQUIP_SLOTS, null),
 		                         RhCommands.EQUIP_SLOT_DEFAULT);
 		String counts = prefs.getString(KEY_COUNTS, "");
@@ -189,6 +215,31 @@ public final class RhPrefs
 	{
 		sMacros[2 * slot]     = name == null ? "" : name.replace('\n', ' ').trim();
 		sMacros[2 * slot + 1] = keys == null ? "" : keys.replace("\n", "");
+		writeMacros(prefs);
+	}
+
+	/**
+	 * Restore defaults (Lucas, 2026-09-26): COMBAT's points, the equipment matrix
+	 * and every fan back to how they shipped.
+	 */
+	public static void restoreKeys(SharedPreferences prefs)
+	{
+		SharedPreferences.Editor e = prefs.edit().remove(KEY_ATK_SLOTS).remove(KEY_EQUIP_SLOTS);
+		for(RhCommands.Hub h : RhCommands.HUBS)
+			e.remove(KEY_FAN_PREFIX + h.id);
+		e.commit();
+		load(prefs);
+	}
+
+	/** M1-M3 emptied, and the flick key back to Kick on the flick up alone. */
+	public static void restoreMacros(SharedPreferences prefs)
+	{
+		prefs.edit().remove(KEY_MACROS).commit();
+		load(prefs);
+	}
+
+	private static void writeMacros(SharedPreferences prefs)
+	{
 		StringBuilder sb = new StringBuilder();
 		for(int i = 0; i < sMacros.length; i++)
 		{

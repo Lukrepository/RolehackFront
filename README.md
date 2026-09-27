@@ -34,14 +34,14 @@ Each key shows its tap on its face and its hold on its front edge. The small let
 | SACRIFICE | Offer | Pray |
 | M1 · M2 · M3 | Run the macro, or set one up if the key is empty | Edit the macro |
 | DROP | Drop one item | Fan: drop by type, from a menu, review first. Tap DROP again for everything |
-| OFFENSE | Fight and Kick keys appear | All attack commands. **Flick** up to Fight, up-right to Kick |
+| COMBAT | Fight and Kick keys appear | All combat commands. **Flick** up to Fight, up-right to Kick |
 | LOOK | Look here (`:`) | Far look (`;`) |
 | Context key | Lights up when something applies: descend, ascend, sacrifice, loot, open or close a door. With two or more, tap to choose | — |
 | INVENTORY | Inventory (`i`) | All gear commands |
 | Wear · Put on · Wield / Take off · Remove · Swap | That command | Clear the key. On an empty key: pick what goes there |
 | EAT QUAFF READ | Eat | Fan: eat, quaff, read. Tap again for everything |
 | SEARCH | Search the count shown | Choose the count |
-| INTERACT | Apply (`a`) | Fan: apply, sit, dip, engrave. Tap again for everything |
+| APPLY | Apply (`a`) | Fan: apply, sit, dip, engrave. Tap again for everything |
 | MENU · WORLD · GAME · KEYS | Settings, the command drawers, the keyboard. GAME ends with what you know: Overview, Enhance skills, Discoveries, Attributes, Genocided, Vanquished, Chronicle, Conduct, Past messages, Known spells, All equipment, What is. WORLD ends with Adjacent trap and Terrain | — |
 
 - **Counts.** Every count row ends in **×n**, which asks for any number up to NetHack's limit of 32767.

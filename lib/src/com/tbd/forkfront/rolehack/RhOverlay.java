@@ -312,8 +312,11 @@ public class RhOverlay extends FrameLayout
 
 	private boolean assignAccepts(boolean attackGroup)
 	{
-		if(mAssign == null)
+		if(mAssign == null || flickPlacing())
 			return false;
+		// From COMBAT's drawer a command goes to its fan or to its points.
+		if(mAssignTarget == ASSIGN_FAN)
+			return attackGroup && RhCommands.HUB_ATTACK.id.equals(mAssignHub);
 		if(mAssignTarget == ASSIGN_BOTH)
 			return true;
 		return attackGroup ? mAssignTarget == ASSIGN_ATTACK : mAssignTarget == ASSIGN_EQUIP;
@@ -460,6 +463,12 @@ public class RhOverlay extends FrameLayout
 					return;
 				}
 				pickUp(item, assignTargetFor(from), from);
+			}
+
+			@Override
+			public void onRestoreDefaults()
+			{
+				confirmRestoreDefaults();
 			}
 
 			@Override
@@ -1005,16 +1014,30 @@ public class RhOverlay extends FrameLayout
 	/** One macro face, wired and labelled; the caller places it. */
 	private RhFace buildMacroFace(final int slot)
 	{
-		final RhFace f = new RhFace(mContext).radius(4f).face(RhTheme.G90);
+		final RhFace f = new RhFace(mContext).radius(4f).face(RhTheme.JADE);
 		mMacroFaces[slot] = f;
 
 		bindHold(f, HUB_HOLD_MS,
-			new Runnable() { @Override public void run() { editMacro(slot); } },
 			new Runnable()
 			{
 				@Override
 				public void run()
 				{
+					if(mAssign != null)
+						return;   // placing, as on a pin key
+					editMacro(slot);
+				}
+			},
+			new Runnable()
+			{
+				@Override
+				public void run()
+				{
+					if(mAssign != null)
+					{
+						placeMacro(slot);
+						return;
+					}
 					if(!RhPrefs.macroSet(slot))
 					{
 						// An empty slot is the discoverable way in, as with a pin point.
@@ -1039,6 +1062,11 @@ public class RhOverlay extends FrameLayout
 
 	private void refreshMacroFace(int slot)
 	{
+		if(slot >= mMacroFaces.length)
+		{
+			refreshFlick();
+			return;
+		}
 		RhFace f = mMacroFaces[slot];
 		if(f == null)
 			return;
@@ -1048,6 +1076,18 @@ public class RhOverlay extends FrameLayout
 		if(mTerm)
 			f.tag(mPortraitLayout && slot > 0 && RhPrefs.macroSet(slot)
 			      && macroLabel(slot).trim().length() > 0 ? "" : "M" + (slot + 1));
+		if(mAssign != null && !flickPlacing())
+		{
+			// Every macro is a destination while a command is in hand, from any
+			// drawer (Lucas, 2026-09-26).
+			f.placeholder(false)
+			 .face(RhTheme.A90)
+			 .textColor(RhTheme.BADGE_TEXT)
+			 .label("HERE", 8f, 0.04f)
+			 .sub(null, 7f, RhTheme.TEXT, 0.75f);
+			return;
+		}
+		f.face(RhTheme.JADE);
 		if(RhPrefs.macroSet(slot))
 			f.placeholder(false)
 			 .textColor(RhTheme.TEXT)
@@ -1058,6 +1098,273 @@ public class RhOverlay extends FrameLayout
 			 .textColor(RhTheme.TEXT)
 			 .label("+", 15f, 0f)
 			 .sub("macro", 7f, RhTheme.TEXT, 0.75f);
+	}
+
+	/**
+	 * A command in hand goes onto a macro key (Lucas, 2026-09-26: "our macro
+	 * buttons should take assignments from every drawer").  The macro takes the
+	 * command's name and key sequence, and edits like any other afterwards.
+	 */
+	private void placeMacro(int slot)
+	{
+		RhPrefs.saveMacro(PreferenceManager.getDefaultSharedPreferences(mContext),
+		                  slot, mAssign.word, mAssign.key);
+		boolean fan = mAssignTarget == ASSIGN_FAN;
+		mAssign = null;
+		mAssignHub = null;
+		if(fan)
+			closeFan();
+		closeRadial();   // the flick key's, when that is where it went
+		refreshAllSlots();
+		updateHubSubLines();
+		applyDimming();
+	}
+
+	// ____________________________________________________________________________________
+	// The flick key (Lucas, 2026-09-26).  OFFENSE's flick, moved to a key of its
+	// own and made a macro: the deck's third pinned point.  A tap runs the tap
+	// macro; a press dragged up or up-and-right runs that flick's macro on
+	// release; a hold without moving shows all three.  All three take a command
+	// from any drawer's ASSIGN, like M1-M3: the lit key opens its radial, then
+	// the node or the key itself takes it.  An empty part opens the editor.
+
+	private static final String FLICK_ID = "flick";
+	private RhFace mFlickFace;
+	private final List<RhFace> mFlickNodes = new ArrayList<RhFace>();
+
+	/** Where the retired third point was: the deck after the first, or the action pad's top row. */
+	private float flickCx()
+	{
+		return mPortraitLayout ? pCellCx(1)
+		                       : termDeckLeft() + mPadCell + T_GAP + (T_SLOT_W + T_GAP) + T_SLOT_W / 2f;
+	}
+
+	private float flickCy()
+	{
+		return mPortraitLayout ? pCellCy(0) : termDeckBottom() + RhCase.DECK_KEY / 2f;
+	}
+
+	private float flickW()
+	{
+		return mPortraitLayout ? mPadCell : T_SLOT_W;
+	}
+
+	private void buildFlickKey()
+	{
+		ViewGroup radial = new FrameLayout(mContext);
+		radial.setVisibility(GONE);
+		addView(radial, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+		mRadials.put(FLICK_ID, radial);
+
+		float[][] w = flickWedges(RhCommands.FLICK_BEARING, RhCommands.FLICK_BEARING.length);
+		mWedges = new WedgeView(mContext, w[0], w[1]);
+		radial.addView(mWedges, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+		for(int i = 0; i < RhCommands.FLICK_BEARING.length; i++)
+		{
+			final int slot = RhPrefs.FLICK_TAP + 1 + i;
+			double a = Math.toRadians(RhCommands.FLICK_BEARING[i]);
+			float sx = offsetX(flickCx(), (float)Math.cos(a) * RhCommands.FLICK_RADIUS);
+			float sy = flickCy() - (float)Math.sin(a) * RhCommands.FLICK_RADIUS;
+			final RhFace node = new RhFace(mContext).radius(4f);
+			radial.addView(node, centredLB(SAT_SIZE, SAT_SIZE, sx, sy));
+			mFlickNodes.add(node);
+			bindHold(node, HUB_HOLD_MS,
+				new Runnable()
+				{
+					@Override
+					public void run()
+					{
+						if(mAssign == null)
+							editMacro(slot);
+					}
+				},
+				new Runnable()
+				{
+					@Override
+					public void run()
+					{
+						if(mAssign != null)
+						{
+							placeMacro(slot);
+							return;
+						}
+						closeRadial();
+						runOrEditMacro(slot, node);
+					}
+				});
+		}
+
+		mFlickFace = new RhFace(mContext).radius(4f).face(RhTheme.JADE).tag("FLICK");
+		addView(mFlickFace, termAttackSlot(2));
+		bindFlick(mFlickFace, RhCommands.FLICK_BEARING, HUB_HOLD_MS,
+			new Runnable()
+			{
+				@Override
+				public void run()
+				{
+					if(mAssign == null)
+						openFlickRadial();
+				}
+			},
+			new Runnable()
+			{
+				@Override
+				public void run()
+				{
+					if(mAssign != null)
+					{
+						// First tap: the three parts light; a tap on the key again
+						// puts the command on its tap.
+						if(FLICK_ID.equals(mRadialOpen))
+							placeMacro(RhPrefs.FLICK_TAP);
+						else
+							openFlickRadial();
+						return;
+					}
+					closeRadial();
+					runOrEditMacro(RhPrefs.FLICK_TAP, mFlickFace);
+				}
+			});
+		refreshFlick();
+	}
+
+	/** A flick landed in wedge w: that flick's macro, or its editor when empty. */
+	private void flickFired(int w, View from)
+	{
+		if(mAssign != null)
+		{
+			openFlickRadial();
+			return;
+		}
+		runOrEditMacro(RhPrefs.FLICK_TAP + 1 + w, from);
+	}
+
+	private void runOrEditMacro(int slot, View from)
+	{
+		if(!RhPrefs.macroSet(slot))
+		{
+			editMacro(slot);
+			return;
+		}
+		closeChips();
+		flashRaw(macroLabel(slot), from);
+		mHost.sendCommand(RhPrefs.macroKeys(slot));
+	}
+
+	private void openFlickRadial()
+	{
+		ViewGroup radial = mRadials.get(FLICK_ID);
+		if(radial == null)
+			return;
+		closeCandidates();
+		closeChips();
+		closeDrawer();
+		closeContextRadial();
+		closeRadial();
+		// A command in hand from a fan hub's drawer: that fan steps aside for
+		// this one, and the assignment stays in hand.
+		closeFan();
+		mRadialOpen = FLICK_ID;
+		radial.setVisibility(VISIBLE);
+		// With a command in hand every other destination stands down (greyed,
+		// under the scrim) and the flick key's three parts take the screen.
+		refreshAllSlots();
+		updateHubSubLines();
+		applyDimming();
+	}
+
+	/** A command in hand and the flick key opened for it: only its three parts take it. */
+	private boolean flickPlacing()
+	{
+		return mAssign != null && FLICK_ID.equals(mRadialOpen);
+	}
+
+	/**
+	 * Restore defaults (Lucas, 2026-09-26), from DEFAULTS beside a lit ASSIGN.
+	 * Keys and fans are ticked; macros are not, since they are the player's own
+	 * typing.
+	 */
+	private void confirmRestoreDefaults()
+	{
+		final android.widget.CheckBox keys = new android.widget.CheckBox(mContext);
+		keys.setText("Pinned keys and fans: COMBAT's points, the Wear/Put on/Wield matrix, every fan");
+		keys.setChecked(true);
+		final android.widget.CheckBox macros = new android.widget.CheckBox(mContext);
+		macros.setText("Macros: M1-M3 emptied, the flick key back to Kick on the flick up");
+		macros.setChecked(false);
+
+		LinearLayout body = new LinearLayout(mContext);
+		body.setOrientation(LinearLayout.VERTICAL);
+		int pad = RhTheme.rawDpi(mContext, 16f);
+		body.setPadding(pad, pad / 2, pad, 0);
+		body.addView(keys);
+		body.addView(macros);
+
+		new android.app.AlertDialog.Builder(mContext)
+				.setTitle("Restore default keys")
+				.setView(body)
+				.setPositiveButton("Restore", new android.content.DialogInterface.OnClickListener()
+				{
+					@Override
+					public void onClick(android.content.DialogInterface d, int which)
+					{
+						SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+						if(keys.isChecked())
+							RhPrefs.restoreKeys(prefs);
+						if(macros.isChecked())
+							RhPrefs.restoreMacros(prefs);
+						if(keys.isChecked() || macros.isChecked())
+							rebuild();
+					}
+				})
+				.setNegativeButton("Cancel", null)
+				.show();
+	}
+
+	private void refreshFlick()
+	{
+		if(mFlickFace == null)
+			return;
+		styleFlickPart(mFlickFace, RhPrefs.FLICK_TAP, "hold · flick");
+		for(int i = 0; i < mFlickNodes.size(); i++)
+			styleFlickPart(mFlickNodes.get(i), RhPrefs.FLICK_TAP + 1 + i, null);
+	}
+
+	private void styleFlickPart(RhFace f, int slot, String sub)
+	{
+		if(mAssign != null)
+		{
+			// Lucas, 2026-09-26: a + on the key says it opens onto more places;
+			// opened, the key itself is one of them (its tap) and the + goes.
+			boolean opener = slot == RhPrefs.FLICK_TAP && !FLICK_ID.equals(mRadialOpen);
+			f.placeholder(false)
+			 .face(RhTheme.A90)
+			 .textColor(RhTheme.BADGE_TEXT)
+			 .label(opener ? "+" : "HERE", opener ? 15f : 8f, opener ? 0f : 0.04f)
+			 .sub(opener ? "3 places" : null, 7f, RhTheme.TEXT, 0.75f);
+			return;
+		}
+		f.face(RhTheme.JADE).textColor(RhTheme.TEXT);
+		if(RhPrefs.macroSet(slot))
+			f.placeholder(false)
+			 .label(macroLabel(slot), 8.5f, 0.03f)
+			 .sub(sub, 7f, RhTheme.TEXT, 0.75f);
+		else
+			f.placeholder(true)
+			 .label("+", 15f, 0f)
+			 .sub(sub, 7f, RhTheme.TEXT, 0.75f);
+	}
+
+	private String macroTitle(int slot)
+	{
+		if(slot == RhPrefs.FLICK_TAP)
+			return "Flick key: tap";
+		if(slot == RhPrefs.FLICK_TAP + 1)
+			return "Flick key: flick up";
+		if(slot == RhPrefs.FLICK_TAP + 2)
+			return "Flick key: flick up-right";
+		return RhPrefs.macroSet(slot) ? "Edit macro" : "New macro";
 	}
 
 	/**
@@ -1100,7 +1407,7 @@ public class RhOverlay extends FrameLayout
 		body.addView(help);
 
 		final android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(mContext)
-				.setTitle(RhPrefs.macroSet(slot) ? "Edit macro" : "New macro")
+				.setTitle(macroTitle(slot))
 				.setView(body)
 				.setPositiveButton("Save", new android.content.DialogInterface.OnClickListener()
 				{
@@ -1982,23 +2289,10 @@ public class RhOverlay extends FrameLayout
 
 		if(hub == RhCommands.HUB_ATTACK)
 		{
-			// OFFENSE's radial sits on the same arc as its pinnable points, so a
-			// command promoted from the radial lands where it was shown.
-			buildRadial(hub, RhCommands.OFFENSE_RADIAL,
-			            RhCommands.ATK_SLOT_BEARING,
-			            new float[] { RhCommands.ATK_SLOT_RADIUS });
 			buildAttackStarPoints(hv);
-			// The flick's wedges, drawn behind the radial's nodes, so the gesture can
-			// be seen as well as felt (Lucas, 2026-09-23).
-			ViewGroup offRadial = mRadials.get(hub.id);
-			if(offRadial != null)
-			{
-				float[][] w = flickWedges(RhCommands.ATK_SLOT_BEARING,
-						Math.min(RhCommands.OFFENSE_RADIAL.length, RhCommands.ATK_SLOT_BEARING.length));
-				mWedges = new WedgeView(mContext, w[0], w[1]);
-				offRadial.addView(mWedges, 0,
-						new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-			}
+			// The deck's third point is the flick key now (Lucas, 2026-09-26).
+			if(mTerm)
+				buildFlickKey();
 		}
 		if(hub == RhCommands.HUB_EQUIP)
 			buildEquipMatrix(hv);
@@ -2047,17 +2341,7 @@ public class RhOverlay extends FrameLayout
 		else
 			addView(hv.face, centredLB(hubW(hub), hubH(hub), hubCx(hub), hubCy(hub)));
 
-		if(hub == RhCommands.HUB_ATTACK)
-		{
-			// Inverted: OFFENSE has no quick command worth a bare tap, so a tap
-			// opens the radial and a hold opens the drawer.  A flick toward one of
-			// the radial's nodes fires it directly -- see bindFlick().
-			bindFlick(hv.face, hub, RhCommands.OFFENSE_RADIAL, RhCommands.ATK_SLOT_BEARING,
-				HUB_HOLD_MS,
-				new Runnable() { @Override public void run() { openDrawer(hub.group.id, hub); } },
-				new Runnable() { @Override public void run() { toggleRadial(hub); } });
-		}
-		else if(hub == RhCommands.HUB_EQUIP)
+		if(hub == RhCommands.HUB_EQUIP)
 		{
 			// The inventory bar over the equipment matrix: tap `i`, hold for the
 			// whole gear drawer.  The six cells below it do the rest.
@@ -2407,8 +2691,6 @@ public class RhOverlay extends FrameLayout
 	/** Where a drawer's command can be pinned, by the hub that opened the drawer. */
 	private int assignTargetFor(RhCommands.Hub hub)
 	{
-		if(hub == RhCommands.HUB_ATTACK)
-			return ASSIGN_ATTACK;
 		if(hub == RhCommands.HUB_EQUIP)
 			return ASSIGN_EQUIP;
 		if(hub != null && mFanKeys.containsKey(hub.id))
@@ -2428,7 +2710,7 @@ public class RhOverlay extends FrameLayout
 
 	private boolean assignAcceptsFan(RhCommands.Hub hub)
 	{
-		return mAssign != null && mAssignTarget == ASSIGN_FAN && hub.id.equals(mAssignHub);
+		return mAssign != null && !flickPlacing() && mAssignTarget == ASSIGN_FAN && hub.id.equals(mAssignHub);
 	}
 
 	/** A fan node's command: the pinned key, or the fan as shipped. */
@@ -2516,6 +2798,10 @@ public class RhOverlay extends FrameLayout
 		keys[index] = mAssign.key;
 		saveSlots(attack);
 		mAssign = null;
+		mAssignHub = null;
+		// From COMBAT's drawer its fan was open too, and the flick key's radial may be.
+		closeFan();
+		closeRadial();
 		refreshAllSlots();
 		updateHubSubLines();
 		applyDimming();
@@ -2548,6 +2834,9 @@ public class RhOverlay extends FrameLayout
 			else if(hv.hub == RhCommands.HUB_EQUIP)
 				refreshSlots(hv, false);
 		}
+		for(int i = 0; i < mMacroFaces.length; i++)
+			refreshMacroFace(i);
+		refreshFlick();
 	}
 
 	/** While a command is in hand the owning hub says where it wants to go. */
@@ -2556,12 +2845,12 @@ public class RhOverlay extends FrameLayout
 		for(HubView hv : mHubs)
 		{
 			String sub;
-			if(hv.hub == RhCommands.HUB_ATTACK && assignAccepts(true))
+			if(assignAcceptsFan(hv.hub))
+				sub = "pick a node";
+			else if(hv.hub == RhCommands.HUB_ATTACK && assignAccepts(true))
 				sub = "pick a point";
 			else if(hv.hub == RhCommands.HUB_EQUIP && assignAccepts(false))
 				sub = "pick a cell";
-			else if(assignAcceptsFan(hv.hub))
-				sub = "pick a node";
 			else if(hv.hub.id.equals(mFanOpen))
 				sub = "tap = all";
 			else
@@ -2579,8 +2868,6 @@ public class RhOverlay extends FrameLayout
 	{
 		if(hub == RhCommands.HUB_EQUIP)
 			return "hold · all gear";
-		if(hub == RhCommands.HUB_ATTACK)
-			return "hold + flick";
 		return hub.leftSide ? "hold ▸" : "◂ hold";
 	}
 
@@ -2606,7 +2893,7 @@ public class RhOverlay extends FrameLayout
 			openDrawer(hv.hub.group.id, hv.hub);
 			return;
 		}
-		execute(hv.hub.quick, hv.face);
+		fireFromHub(hv.hub, hv.hub.quick, hv.face);
 	}
 
 	private void openFan(HubView hv)
@@ -2753,6 +3040,12 @@ public class RhOverlay extends FrameLayout
 				if(hv.hub == RhCommands.HUB_EQUIP)
 					hv.face.sub(hubIdleSub(hv.hub), hubSubSize(hv.hub), RhTheme.TEXT, 0.75f);
 			}
+		if(FLICK_ID.equals(was))
+		{
+			// Other destinations light again if a command is still in hand.
+			refreshAllSlots();
+			updateHubSubLines();
+		}
 		applyDimming();
 	}
 
@@ -2864,7 +3157,17 @@ public class RhOverlay extends FrameLayout
 					lift.add(hv.fan);
 				}
 			}
+			if(!flickPlacing())
+				for(RhFace m : mMacroFaces)
+					if(m != null)
+						lift.add(m);
 		}
+		// The flick key and its radial go on top of everything else lifted: in
+		// portrait its flicks sit over the equipment cells.
+		if(mFlickFace != null && (mAssign != null || FLICK_ID.equals(mRadialOpen)))
+			lift.add(mFlickFace);
+		if(FLICK_ID.equals(mRadialOpen))
+			lift.add(mRadials.get(FLICK_ID));
 
 		if(lift.isEmpty())
 		{
@@ -4000,12 +4303,12 @@ public class RhOverlay extends FrameLayout
 		@Override
 		protected void onDraw(Canvas canvas)
 		{
-			// A negative centre is measured from the right -- OFFENSE's, in portrait.
-			float hx = hubCx(RhCommands.HUB_ATTACK);
+			// A negative centre is measured from the right -- the flick key's, in portrait.
+			float hx = flickCx();
 			float cx = hx >= 0 ? RhTheme.dp(getContext(), hx) : getWidth() - RhTheme.dp(getContext(), -hx);
-			float cy = getHeight() - RhTheme.dp(getContext(), hubCy(RhCommands.HUB_ATTACK));
-			float rIn  = RhTheme.dp(getContext(), hubW(RhCommands.HUB_ATTACK) / 2f + 5f);
-			float rOut = RhTheme.dp(getContext(), RhCommands.ATK_SLOT_RADIUS + SAT_SIZE / 2f + 12f);
+			float cy = getHeight() - RhTheme.dp(getContext(), flickCy());
+			float rIn  = RhTheme.dp(getContext(), flickW() / 2f + 5f);
+			float rOut = RhTheme.dp(getContext(), RhCommands.FLICK_RADIUS + SAT_SIZE / 2f + 12f);
 			mOuter.set(cx - rOut, cy - rOut, cx + rOut, cy + rOut);
 			mInner.set(cx - rIn, cy - rIn, cx + rIn, cy + rIn);
 			for(int i = 0; i < mLo.length; i++)
@@ -4038,13 +4341,12 @@ public class RhOverlay extends FrameLayout
 	 * The tap and hold halves are bindHold()'s, with the same swallowed-release
 	 * rule for the gesture that opened the hold state.
 	 */
-	private void bindFlick(final RhFace face, final RhCommands.Hub hub,
-	                       final RhCommands.Item[] items, final float[] bearings,
+	private void bindFlick(final RhFace face, final float[] bearings,
 	                       final int holdMs, final Runnable onHold, final Runnable onTap)
 	{
 		final float slopPx = RhTheme.dp(mContext, FLICK_SLOP_DP);
 		final float minPx  = RhTheme.dp(mContext, FLICK_MIN_DP);
-		final int n = Math.min(items.length, bearings.length);
+		final int n = bearings.length;
 
 		// Wedge boundaries, once.  The arc is centred so that a bearing can be
 		// normalised into (centre - 180, centre + 180] before comparing, which keeps
@@ -4077,7 +4379,7 @@ public class RhOverlay extends FrameLayout
 			// The i-th node among the radial's faces; the wedge view sits at child 0.
 			private RhFace node(int i)
 			{
-				ViewGroup radial = mRadials.get(hub.id);
+				ViewGroup radial = mRadials.get(FLICK_ID);
 				if(radial == null || i < 0)
 					return null;
 				for(int c = 0, k = 0; c < radial.getChildCount(); c++)
@@ -4104,19 +4406,19 @@ public class RhOverlay extends FrameLayout
 					old.setFacePressed(false);
 				wedge = i;
 				RhFace now = node(wedge);
-				if(now != null && hub.id.equals(mRadialOpen))
+				if(now != null && FLICK_ID.equals(mRadialOpen))
 					now.setFacePressed(true);
 				if(mWedges != null)
-					mWedges.setActive(hub.id.equals(mRadialOpen) ? wedge : -1);
+					mWedges.setActive(FLICK_ID.equals(mRadialOpen) ? wedge : -1);
 			}
 
 			private void reveal()
 			{
 				if(!dragging || revealed)
 					return;
-				if(!hub.id.equals(mRadialOpen))
+				if(!FLICK_ID.equals(mRadialOpen))
 				{
-					openRadial(hub);
+					openFlickRadial();
 					revealed = true;
 				}
 				// Re-apply so the node lights whether the radial was just opened
@@ -4242,7 +4544,7 @@ public class RhOverlay extends FrameLayout
 						if(w >= 0)
 						{
 							closeRadial();
-							fireFromHub(hub, items[w], face);
+							flickFired(w, face);
 						}
 						else if(dist < minPx && !revealed)
 						{
@@ -4355,6 +4657,8 @@ public class RhOverlay extends FrameLayout
 		mCtxCandidates.clear();
 		mCandOpen = false;
 		mWedges = null;
+		mFlickFace = null;
+		mFlickNodes.clear();
 		mCtxStrip.clear();
 		mChipRows.clear();
 		mChipsOpen = null;
