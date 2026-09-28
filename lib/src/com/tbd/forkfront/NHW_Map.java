@@ -23,6 +23,8 @@ import android.widget.TextView;
 import com.tbd.forkfront.Tileset;
 import com.tbd.forkfront.rolehack.RhDoll;
 import com.tbd.forkfront.rolehack.RhPrefs;
+import com.tbd.forkfront.rolehack.RhStatus;
+import com.tbd.forkfront.rolehack.RhTheme;
 
 public class NHW_Map implements NH_Window
 {
@@ -600,6 +602,41 @@ public class NHW_Map implements NH_Window
 		}
 	}
 
+	/*
+	 * Rolehack (colour vision, layer 1; Lucas, 2026-09-28): under the mobile
+	 * interface the hero's outline takes the status line's HP steps and colours
+	 * (RhTheme.hpTier) rather than the core's health colour, whose steps
+	 * (defaults.nh: 70, 50, 30%) disagreed with the status line's (66, 33%),
+	 * and below a third it doubles, so the last step reads without colour.
+	 * The classic interface keeps the core's colour.
+	 */
+	private RhStatus rolehackStatus()
+	{
+		if(mNHState == null || !mNHState.isRolehackUIActive())
+			return null;
+		RhStatus s = mNHState.rolehackStatus();
+		return s != null && s.isPopulated() ? s : null;
+	}
+
+	private int heroOutlineColour()
+	{
+		RhStatus s = rolehackStatus();
+		return s != null ? RhTheme.hpColour(RhTheme.hpTier(s.hpFraction())) : mHealthColor;
+	}
+
+	private boolean heroOutlineDoubled()
+	{
+		RhStatus s = rolehackStatus();
+		return s != null && RhTheme.hpTier(s.hpFraction()) == RhTheme.HP_CRITICAL;
+	}
+
+	/** The core finished a status pass: HP may have crossed a step. */
+	public void rolehackStatusChanged()
+	{
+		if(mCursorPos.x >= 0)
+			mUI.invalidateTile(mCursorPos.x, mCursorPos.y);
+	}
+
 	// ____________________________________________________________________________________
 	public void viewAreaChanged(Rect viewRect)
 	{
@@ -773,9 +810,10 @@ public class NHW_Map implements NH_Window
 			float x = (float)Math.floor(mViewOffset.x);
 			float y = (float)Math.floor(mViewOffset.y);
 
-			if(mCursorPos.x >= 0 && mHealthColor != 0)
+			int colour = heroOutlineColour();
+			if(mCursorPos.x >= 0 && colour != 0)
 			{
-				mPaint.setColor(mHealthColor);
+				mPaint.setColor(colour);
 				mPaint.setStyle(Style.STROKE);
 				mPaint.setStrokeWidth(2);
 				mPaint.setAntiAlias(false);
@@ -784,6 +822,15 @@ public class NHW_Map implements NH_Window
 				dst.top = y + mCursorPos.y * tileH + 0.5f;
 				dst.right = dst.left + tileW - 2.0f;
 				dst.bottom = dst.top + tileH - 2.0f;
+				if(heroOutlineDoubled())
+				{
+					// Two lines a tile pixel wide, a tile pixel apart.
+					float px = Math.max(2f, Math.round(tileW / 16f));
+					mPaint.setStrokeWidth(px);
+					dst.inset(px / 2f - 1f, px / 2f - 1f);
+					canvas.drawRect(dst, mPaint);
+					dst.inset(2 * px, 2 * px);
+				}
 				canvas.drawRect(dst, mPaint);
 				mPaint.setStyle(Style.FILL);
 			}
@@ -824,8 +871,9 @@ public class NHW_Map implements NH_Window
 					int bgColor = 0xff000000;
 					if(tileX == mCursorPos.x && tileY == mCursorPos.y)
 					{
-						if(mHealthColor != 0) {
-							bgColor = mHealthColor;
+						int heroColour = heroOutlineColour();
+						if(heroColour != 0) {
+							bgColor = heroColour;
 							fgColor = 0xff000000;
 						} else {
 							bgColor = 0x00000000;

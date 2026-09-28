@@ -660,6 +660,12 @@ public class NH_State
 		return mRolehackUI != null && mRolehackUI.ownsControls();
 	}
 
+	/** The status as the mobile interface reads it (the map's hero outline uses it too). */
+	public RhStatus rolehackStatus()
+	{
+		return mRolehackStatus;
+	}
+
 	// ____________________________________________________________________________________
 	public boolean rolehackBackPressed()
 	{
@@ -1032,6 +1038,8 @@ public class NH_State
 			// The core has finished a status pass, so the fields are consistent now.
 			if(mRolehackUI != null)
 				mRolehackUI.statusUpdated(mRolehackStatus);
+			if(mMap != null)
+				mMap.rolehackStatusChanged();
 			mStatus.redraw();
 		}
 	};

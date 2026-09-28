@@ -24,12 +24,13 @@ import java.util.List;
  *
  * Colour now follows severity, not source, in four tiers that mirror the
  * status highlights Lucas plays with (satiated/burdened yellow, hungry/stressed
- * orange, weak/strained red):
+ * orange, weak/strained red).  Each tier also has a style of its own, so it
+ * reads without colour vision (colour vision, layer 1; Lucas, 2026-09-28):
  *
- *   critical  red     Weak, Fainting, Strained and worse, deadly conditions
- *   serious   orange  Hungry, Stressed
- *   warning   amber   Satiated, Burdened, impairing conditions (Stun, Conf...)
- *   info      blue    Lev, Fly, Ride
+ *   critical  vermillion, solid, bold, framed   Weak, Fainting, Strained and worse, deadly conditions
+ *   serious   orange, solid                     Hungry, Stressed
+ *   warning   yellow, outline                   Satiated, Burdened, impairing conditions (Stun, Conf...)
+ *   info      sky blue, plain text              Lev, Fly, Ride
  *
  * The column shows MAX_ROWS lines.  Past that the last line becomes "+N MORE";
  * tapping it lists everything for a few seconds.  Taps land on the map as usual
@@ -57,6 +58,11 @@ public class RhBadges extends View
 
 	static int bg(int tier) { return BG[tier]; }
 	static int fg(int tier) { return FG[tier]; }
+
+	/** How each tier draws: bg is the fill, or the outline and text for the last two. */
+	static final int STYLE_FRAMED = 0, STYLE_SOLID = 1, STYLE_OUTLINE = 2, STYLE_PLAIN = 3;
+	private static final int[] STYLE = { STYLE_FRAMED, STYLE_SOLID, STYLE_OUTLINE, STYLE_PLAIN };
+	static int style(int tier) { return STYLE[tier]; }
 
 	private final Paint mText = new Paint(Paint.ANTI_ALIAS_FLAG);
 	private final Paint mFill = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -182,12 +188,37 @@ public class RhBadges extends View
 			String t = more ? "+" + hidden + " MORE" : all.get(i).text;
 			int tier = more ? -1 : all.get(i).tier;
 			float w = mText.measureText(t) + 2 * padX;
+			int style = more ? STYLE_SOLID : STYLE[tier];
 			mRect.set(0f, y, w, y + rowH);
-			mFill.setColor(more ? MORE_BG : BG[tier]);
-			canvas.drawRoundRect(mRect, r, r, mFill);
-			mText.setColor(more ? MORE_FG : FG[tier]);
+			if(style == STYLE_FRAMED || style == STYLE_SOLID)
+			{
+				mFill.setStyle(Paint.Style.FILL);
+				mFill.setColor(more ? MORE_BG : BG[tier]);
+				canvas.drawRoundRect(mRect, r, r, mFill);
+				mText.setColor(more ? MORE_FG : FG[tier]);
+			}
+			else
+			{
+				// The column floats over the map, so text without a fill keeps a
+				// dark ground under it.
+				mFill.setStyle(Paint.Style.FILL);
+				mFill.setColor(0xcc090d0a);
+				canvas.drawRoundRect(mRect, r, r, mFill);
+				mText.setColor(BG[tier]);
+			}
+			if(style == STYLE_FRAMED || style == STYLE_OUTLINE)
+			{
+				mFill.setStyle(Paint.Style.STROKE);
+				mFill.setStrokeWidth(dp(1.2f));
+				mFill.setColor(style == STYLE_FRAMED ? FG[tier] : BG[tier]);
+				mRect.inset(dp(1.2f), dp(1.2f));
+				canvas.drawRoundRect(mRect, r, r, mFill);
+				mFill.setStyle(Paint.Style.FILL);
+			}
+			mText.setFakeBoldText(style == STYLE_FRAMED);
 			float baseline = y + (rowH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
 			canvas.drawText(t, padX, baseline, mText);
+			mText.setFakeBoldText(false);
 			y += rowH + dp(3f);
 		}
 	}

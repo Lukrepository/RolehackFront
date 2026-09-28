@@ -221,6 +221,7 @@ public class RhScreen extends View
 	private final TextPaint mMsg  = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
 	private final Paint mStat = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
 	private final Paint mFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+	private final Paint mLine = new Paint(Paint.ANTI_ALIAS_FLAG);
 	private final Paint mScan = new Paint();
 	private final Path mClip = new Path();
 	private final RectF mRect = new RectF();
@@ -560,7 +561,8 @@ public class RhScreen extends View
 		mStat.setShadowLayer(dp(2.5f), 0f, 0f, (text & 0x00ffffff) | 0x70000000);
 
 		float hp = mStatus.hpFraction();
-		int hpColour = hp >= 0.66f ? 0xff63e07c : hp >= 0.33f ? 0xfff5b342 : 0xffff5a44;
+		int hpTier = RhTheme.hpTier(hp);
+		int hpColour = RhTheme.hpColour(hpTier);
 
 		// Line 1: the title under its HP bar, then where and when.
 		float tw = mStat.measureText(title);
@@ -584,10 +586,24 @@ public class RhScreen extends View
 		float tail1X = x0 + tw + mStat.measureText("  ");
 		canvas.drawText(tail1, tail1X, base[0], mStat);
 
-		// Line 2: HP in its own colour, then power, armour, experience, alignment.
+		// Line 2: HP in its tier's colour, then power, armour, experience,
+		// alignment.  Below a third it is inverse video, which needs no colour.
 		float x = x0;
-		mStat.setColor(hpColour);
-		canvas.drawText(hpText, x, base[1], mStat);
+		if(hpTier == RhTheme.HP_CRITICAL)
+		{
+			float hw = mStat.measureText(hpText);
+			mFill.setColor(hpColour);
+			canvas.drawRect(x - dp(1f), base[1] + fm.ascent - dp(0.5f), x + hw + dp(1f), base[1] + fm.descent, mFill);
+			mStat.clearShadowLayer();
+			mStat.setColor(RhTheme.GLASS_BG);
+			canvas.drawText(hpText, x, base[1], mStat);
+			mStat.setShadowLayer(dp(2.5f), 0f, 0f, (text & 0x00ffffff) | 0x70000000);
+		}
+		else
+		{
+			mStat.setColor(hpColour);
+			canvas.drawText(hpText, x, base[1], mStat);
+		}
 		x += mStat.measureText(hpText + " ");
 		mStat.setColor(text);
 		canvas.drawText(tail2, x, base[1], mStat);
@@ -634,7 +650,7 @@ public class RhScreen extends View
 			String more = "+" + hidden;
 			float mw = mStat.measureText(more) + 2 * padX;
 			bx -= mw + (shown > 0 ? gap : 0f);
-			drawBadge(canvas, bx, baseline, fm, more, 0xff2a302d, 0xffffffff);
+			drawBadge(canvas, bx, baseline, fm, more, 0xff2a302d, 0xffffffff, RhBadges.STYLE_SOLID);
 			bx += mw + (shown > 0 ? gap : 0f);
 		}
 		for(int i = 0; i < shown; i++)
@@ -642,20 +658,44 @@ public class RhScreen extends View
 			RhBadges.Badge b = badges.get(i);
 			float bw = mStat.measureText(b.text) + 2 * padX;
 			drawBadge(canvas, bx, baseline, fm, b.text,
-					RhBadges.bg(b.tier), RhBadges.fg(b.tier));
+					RhBadges.bg(b.tier), RhBadges.fg(b.tier), RhBadges.style(b.tier));
 			bx += bw + gap;
 		}
 	}
 
+	/** One badge in its tier's style (RhBadges.style), so the tier reads without colour. */
 	private void drawBadge(Canvas canvas, float x, float baseline, Paint.FontMetrics fm,
-	                       String s, int bg, int fg)
+	                       String s, int bg, int fg, int style)
 	{
 		float padX = dp(3f);
 		float w = mStat.measureText(s) + 2 * padX;
-		mFill.setColor(bg);
-		canvas.drawRect(x, baseline + fm.ascent - dp(0.5f), x + w, baseline + fm.descent, mFill);
-		mStat.setColor(fg);
+		float top = baseline + fm.ascent - dp(0.5f), bottom = baseline + fm.descent;
+		mLine.setStyle(Paint.Style.STROKE);
+		mLine.setStrokeWidth(dp(1.2f));
+		float in = dp(0.6f);
+		if(style == RhBadges.STYLE_FRAMED || style == RhBadges.STYLE_SOLID)
+		{
+			mFill.setColor(bg);
+			canvas.drawRect(x, top, x + w, bottom, mFill);
+			if(style == RhBadges.STYLE_FRAMED)
+			{
+				mLine.setColor(fg);
+				canvas.drawRect(x + in + dp(0.6f), top + in + dp(0.6f), x + w - in - dp(0.6f), bottom - in - dp(0.6f), mLine);
+			}
+			mStat.setColor(fg);
+		}
+		else
+		{
+			if(style == RhBadges.STYLE_OUTLINE)
+			{
+				mLine.setColor(bg);
+				canvas.drawRect(x + in, top + in, x + w - in, bottom - in, mLine);
+			}
+			mStat.setColor(bg);
+		}
+		mStat.setFakeBoldText(style == RhBadges.STYLE_FRAMED);
 		canvas.drawText(s, x + padX, baseline, mStat);
+		mStat.setFakeBoldText(false);
 	}
 
 	/** Where and when: "Dlvl:13  $:5  T:2141". */

@@ -51,17 +51,22 @@ public final class RhTheme
 	public static final int[] JADE = { 0xff0a2e28, 0xff1e8f7a };
 
 	// ____________________________________________________________________________________
-	// Condition badges, by how much they should alarm you.
+	// Condition badges, by how much they should alarm you.  Each tier also has
+	// its own style, so it reads without colour vision (colour vision, layer 1;
+	// Lucas, 2026-09-28): critical is solid, bold and framed, serious solid,
+	// warning an outline, info plain text (RhBadges.style).  The hues are Okabe
+	// and Ito's colour-blind-safe set; the red, orange and amber they replace
+	// were one colour to a deuteranope (workspace colour-vision-brief-2026-09-28).
 
-	/** Stoning, slime, strangling, food poisoning, terminal illness. */
-	public static final int COND_DEADLY_BG   = 0xffc2412e;
+	/** Stoning, slime, strangling, food poisoning, terminal illness: solid, bold, framed. */
+	public static final int COND_DEADLY_BG   = 0xffb84a00;
 	public static final int COND_DEADLY_TEXT = 0xffffffff;
-	/** Blind, deaf, stunned, confused, hallucinating. */
-	public static final int COND_IMPAIR_BG   = 0xffc9a227;
+	/** Blind, deaf, stunned, confused, hallucinating: an outline and text in this colour. */
+	public static final int COND_IMPAIR_BG   = 0xfff0e442;
 	public static final int COND_IMPAIR_TEXT = 0xff1a1206;
-	/** Levitating, flying, riding -- worth knowing, not worth alarm. */
-	public static final int COND_MOVE_BG     = 0xff2f63ad;
-	public static final int COND_MOVE_TEXT   = 0xffffffff;
+	/** Levitating, flying, riding -- worth knowing, not worth alarm: plain text in this colour. */
+	public static final int COND_MOVE_BG     = 0xff56b4e9;
+	public static final int COND_MOVE_TEXT   = 0xff1a1206;
 
 	// ____________________________________________________________________________________
 	// Face treatment -- the 90s hardware look.
@@ -319,6 +324,33 @@ public final class RhTheme
 	}
 
 	public static int phosphorText() { return PHOSPHOR_TEXT[sPhosphor]; }
+
+	/*
+	 * HP by tier (colour vision, layer 1; Lucas, 2026-09-28).  Plain text from
+	 * two thirds up, a warning colour from one third, and vermillion in inverse
+	 * video below that, so the last step reads without colour.  The warning is
+	 * yellow under the colour and white phosphors, and white under amber and
+	 * green: their own text is too close to yellow for red-green vision, and a
+	 * brighter line is how a one-colour terminal highlighted.  The status line
+	 * (RhScreen) and the hero's outline on the map (NHW_Map) share these steps.
+	 */
+	public static final int HP_OK = 0, HP_HURT = 1, HP_CRITICAL = 2;
+	public static final int HP_HURT_YELLOW = 0xffffe14d, HP_HURT_BRIGHT = 0xffffffff;
+	public static final int HP_CRITICAL_COLOUR = 0xffff6a33;
+
+	public static int hpTier(float fraction)
+	{
+		return fraction >= 0.66f ? HP_OK : fraction >= 0.33f ? HP_HURT : HP_CRITICAL;
+	}
+
+	public static int hpColour(int tier)
+	{
+		if(tier == HP_OK)
+			return phosphorText();
+		if(tier == HP_HURT)
+			return sPhosphor == 1 || sPhosphor == 2 ? HP_HURT_BRIGHT : HP_HURT_YELLOW;
+		return HP_CRITICAL_COLOUR;
+	}
 	public static int phosphorDim()  { return PHOSPHOR_DIM[sPhosphor]; }
 
 	// ____________________________________________________________________________________
@@ -453,8 +485,8 @@ public final class RhTheme
 	public static final int GOLD             = 0xffe8c04a;
 	public static final int BADGE_BG         = 0xffc9a227;
 	public static final int BADGE_TEXT       = 0xff1a1206;
-	/** Serious status -- Hungry, Stressed: between the amber caution and the red. */
-	public static final int STATUS_SERIOUS_BG   = 0xffd9772b;
+	/** Serious status -- Hungry, Stressed: a solid badge, between the warning and the critical. */
+	public static final int STATUS_SERIOUS_BG   = 0xffe69f00;
 	public static final int STATUS_SERIOUS_TEXT = 0xff1a1206;
 	public static final int BAR_TROUGH_BG    = 0x24ffffff; // rgba(255,255,255,.14)
 	public static final int BAR_TROUGH_RIM   = 0x40ffffff; // rgba(255,255,255,.25)
