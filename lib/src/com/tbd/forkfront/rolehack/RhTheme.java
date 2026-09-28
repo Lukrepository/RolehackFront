@@ -331,6 +331,14 @@ public final class RhTheme
 	private static String sScreenFont = "vt323";
 	private static Typeface sCapFont;
 	private static Typeface sScreenTypeface;
+	/**
+	 * The message band's face and size (Lucas, 2026-09-28; step 3 of the message
+	 * band research): Atkinson Hyperlegible Next by default, or the screen font,
+	 * and the player's size as a factor.
+	 */
+	private static String sMsgFont = "atkinson";
+	private static float sMsgScale = 1f;
+	private static Typeface sMsgTypeface;
 
 	/** Keycap legends: IBM Plex Sans Condensed by default, as on the canvas. */
 	public static Typeface capFont(Context c)
@@ -364,6 +372,40 @@ public final class RhTheme
 				sScreenTypeface = load(c, "fonts/VT323-Regular.ttf", Typeface.MONOSPACE, Typeface.NORMAL);
 		}
 		return sScreenTypeface;
+	}
+
+	/** The message band's face: Atkinson Hyperlegible Next, the Braille Institute's, or the screen font. */
+	public static Typeface messageFont(Context c)
+	{
+		if("screen".equals(sMsgFont))
+			return screenFont(c);
+		if(sMsgTypeface == null)
+			sMsgTypeface = load(c, "fonts/AtkinsonHyperlegibleNext-Variable.ttf", Typeface.SANS_SERIF, Typeface.NORMAL);
+		return sMsgTypeface;
+	}
+
+	/**
+	 * The message band's face's x-height, in ems, from each font's own OS/2
+	 * table (measured 2026-09-28), so the band sizes any of them to the same
+	 * x-height.
+	 */
+	public static float messageXHeight()
+	{
+		if(!"screen".equals(sMsgFont))
+			return 0.496f;   // Atkinson Hyperlegible Next
+		if("plexmono".equals(sScreenFont))
+			return 0.516f;
+		if("sharetech".equals(sScreenFont))
+			return 0.500f;
+		if("spacemono".equals(sScreenFont))
+			return 0.496f;
+		return 0.400f;       // VT323
+	}
+
+	/** The player's message size, a factor (Settings -> Message size). */
+	public static float messageScale()
+	{
+		return sMsgScale;
 	}
 
 	/** Size multiplier for the screen font, so each reads at about the same height. */
@@ -495,6 +537,8 @@ public final class RhTheme
 			sKeyFont = key;
 			sCapFont = null;
 		}
+		sMsgFont = prefs.getString("rhMsgFont", "atkinson");
+		sMsgScale = clamp(parseIntOr(prefs.getString("rhMsgSize", "100"), 100) / 100f, 0.7f, 2f);
 		String screen = prefs.getString("rhScreenFont", "vt323");
 		if(!screen.equals(sScreenFont))
 		{
@@ -524,6 +568,18 @@ public final class RhTheme
 	public static float uiScale()
 	{
 		return Math.min(sUiScale, sFitLimit);
+	}
+
+	private static int parseIntOr(String s, int or)
+	{
+		try
+		{
+			return Integer.parseInt(s.trim());
+		}
+		catch(RuntimeException e)
+		{
+			return or;
+		}
 	}
 
 	public static float clamp(float v, float min, float max)

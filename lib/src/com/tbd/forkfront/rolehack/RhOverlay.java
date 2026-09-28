@@ -541,10 +541,10 @@ public class RhOverlay extends FrameLayout
 		return RhScreen.msgRows(mPortraitLayout);
 	}
 
-	/** The message band's height, design dp. */
-	private float msgBandDp()
+	/** The message band's height, px (its text is sized in true dp; see RhScreen.msgTextPx). */
+	private int msgBandPx()
 	{
-		return RhScreen.msgBand(msgRows());
+		return Math.round(RhScreen.msgBandPx(mContext, msgRows()));
 	}
 
 	/**
@@ -560,7 +560,7 @@ public class RhOverlay extends FrameLayout
 		if(mScreenOnly)
 		{
 			// the screen fills the view: the map between its two bands
-			int top    = RhTheme.dpi(mContext, msgBandDp());
+			int top    = msgBandPx();
 			int bottom = RhTheme.dpi(mContext, RhScreen.statusBand());
 			if(getHeight() - top - bottom <= 0)
 				return null;
@@ -572,7 +572,7 @@ public class RhOverlay extends FrameLayout
 		if(RhTheme.caseless() && !mPortraitLayout)
 			return null;
 		int side   = RhTheme.dpi(mContext, glassSideDp() + 2f);
-		int top    = RhTheme.dpi(mContext, glassTopDp() + msgBandDp());
+		int top    = RhTheme.dpi(mContext, glassTopDp()) + msgBandPx();
 		int bottom = RhTheme.dpi(mContext, glassBottomDp() + RhScreen.statusBand());
 		if(getWidth() - 2 * side <= 0 || getHeight() - top - bottom <= 0)
 			return null;
@@ -3626,7 +3626,7 @@ public class RhOverlay extends FrameLayout
 		{
 			// Across the top of the map, under the message lines.
 			lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-			lp.topMargin = RhTheme.dpi(mContext, glassTopDp() + msgBandDp() + 6f);
+			lp.topMargin = RhTheme.dpi(mContext, glassTopDp() + 6f) + msgBandPx();
 		}
 		else
 		{

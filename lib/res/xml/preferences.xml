@@ -145,6 +145,24 @@
 				android:key="rhMorePause"/>
 
 			<ListPreference
+				android:title="Message font"
+				android:summary="The message band: Atkinson Hyperlegible Next, the Braille Institute's face for legibility, or the screen font"
+				android:persistent="true"
+				android:key="rhMsgFont"
+				android:defaultValue="atkinson"
+				android:entries="@array/rhMsgFontNames"
+				android:entryValues="@array/rhMsgFontValues"/>
+
+			<ListPreference
+				android:title="Message size"
+				android:summary="The message band's text. The phone's own font size applies too"
+				android:persistent="true"
+				android:key="rhMsgSize"
+				android:defaultValue="100"
+				android:entries="@array/rhMsgSizeNames"
+				android:entryValues="@array/rhMsgSizeValues"/>
+
+			<ListPreference
 				android:title="Screen phosphor"
 				android:summary="Terminal style: the colour of the message and status lines"
 				android:persistent="true"

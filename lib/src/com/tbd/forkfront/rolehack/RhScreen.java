@@ -51,15 +51,39 @@ public class RhScreen extends View
 	private static final int STATUS_SMOKE = 0x99090d0a;
 
 	private static final float PAD_H     = 10f;
-	private static final float MSG_SIZE  = 11f;
+	/**
+	 * The message band's text is sized by its x-height, 10dp: 0.25 degrees at a
+	 * phone's 36 cm, the message band research's target, over reading science's
+	 * 0.2 degree critical print size (VT323 at the old 11dp x 1.35 gave about
+	 * 0.15).  True dp: the case's UI scale does not shrink it.  Times the
+	 * player's size and the phone's own font size.  Rows 1.35 apart.
+	 */
+	private static final float MSG_X = 10f;
+	private static final float MSG_LEADING = 1.35f;
 	private static final float STAT_SIZE = 10.5f;
 	private static final float LINE      = 13.5f;
 
 	/** Rows of the message band: three in portrait, two in landscape (Lucas, 2026-09-28). */
 	public static int msgRows(boolean portrait) { return portrait ? 3 : 2; }
 
-	/** The message band's height for its rows, design dp: 5 above, 4 below, LINE apart. */
-	public static float msgBand(int rows) { return 5f + rows * LINE + 4f; }
+	/** The message band's text size, px. */
+	public static float msgTextPx(Context c)
+	{
+		float system = RhTheme.clamp(c.getResources().getConfiguration().fontScale, 0.85f, 2f);
+		return RhTheme.rawDp(c, MSG_X / RhTheme.messageXHeight()) * RhTheme.messageScale() * system;
+	}
+
+	/** One row of the message band, px. */
+	public static float msgRowPx(Context c)
+	{
+		return msgTextPx(c) * MSG_LEADING;
+	}
+
+	/** The message band's height for its rows, px: 5 above and 4 below at the UI scale. */
+	public static float msgBandPx(Context c, int rows)
+	{
+		return RhTheme.dp(c, 5f) + RhTheme.dp(c, 4f) + rows * msgRowPx(c);
+	}
 
 	public interface Listener
 	{
@@ -222,8 +246,8 @@ public class RhScreen extends View
 		super(context);
 		mListener = listener;
 		mRows = rows;
-		mMsg.setTypeface(RhTheme.screenFont(context));
-		mMsg.setTextSize(msgSize());
+		mMsg.setTypeface(RhTheme.messageFont(context));
+		mMsg.setTextSize(msgTextPx(context));
 		mStat.setTypeface(RhTheme.screenFont(context));
 		mStat.setTextSize(statSize());
 
@@ -397,7 +421,7 @@ public class RhScreen extends View
 		// show through the text.  Its height is fixed; what does not fit waits
 		// behind --More--.
 		layoutRows();
-		float msgBottom = dp(msgBand(mRows));
+		float msgBottom = msgBandPx(getContext(), mRows);
 		// Caseless, it is smoked glass over the map rather than the tube.
 		boolean caseless = RhTheme.caseless();
 		mFill.setColor(caseless ? 0xc7070a08 : RhTheme.GLASS_BG);
@@ -414,7 +438,7 @@ public class RhScreen extends View
 		if(!mShown.isEmpty())
 		{
 			Paint.FontMetrics fm = mMsg.getFontMetrics();
-			float lineH = dp(LINE);
+			float lineH = msgRowPx(getContext());
 			int colour = mShownOld ? RhTheme.phosphorDim() : text;
 			mMsg.setColor(colour);
 			if(!mShownOld)
@@ -433,7 +457,7 @@ public class RhScreen extends View
 		// shows it, or with the pause off how many messages went by unshown.
 		{
 			Paint.FontMetrics fm = mMsg.getFontMetrics();
-			float lineH = dp(LINE);
+			float lineH = msgRowPx(getContext());
 			float base = dp(5f) + (mRows - 1) * lineH + (lineH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
 			float right = w - dp(PAD_H);
 			if(mMorePrompt)
@@ -679,7 +703,6 @@ public class RhScreen extends View
 	}
 
 	private float statSize() { return dp(STAT_SIZE) * RhTheme.screenFontScale(); }
-	private float msgSize()  { return dp(MSG_SIZE) * RhTheme.screenFontScale(); }
 
 	private String bare(int idx)
 	{
@@ -742,7 +765,7 @@ public class RhScreen extends View
 			}
 			return true;
 		}
-		if(e.getY() >= dp(msgBand(mRows)))
+		if(e.getY() >= msgBandPx(getContext(), mRows))
 			return false;
 		layoutRows();
 		if(mHidden > 0 && e.getActionMasked() == MotionEvent.ACTION_UP && mListener != null)
