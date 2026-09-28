@@ -38,6 +38,9 @@ public interface NH_Handler
 
 	/** Rolehack: a question's answers on the pad; empty letters take them down. */
 	void rhAnswers(String letters, int def);
+
+	/** Rolehack: the core is picking a spot (getpos), or has stopped. */
+	void rhGetpos(boolean on);
 	void rawPrint(int attr, String msg);
 	void printTile(int wid, int x, int y, int tile, int ch, int col, int special);
 	void ynFunction(String question, byte[] choices, int def);

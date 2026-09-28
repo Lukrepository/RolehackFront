@@ -1809,6 +1809,12 @@ public class RhOverlay extends FrameLayout
 		if(mPadCentre == null || mFanOpen != null || mAnswers != null)
 			return;
 
+		if(mPicking)
+		{
+			mPadCentre.label("PICK", 8f, 0.04f).sub(".", 7f, RhTheme.RAW_KEY, 1f);
+			return;
+		}
+
 		if(directionPending())
 		{
 			// While a direction is wanted the centre cell is the ninth direction:
@@ -1905,7 +1911,7 @@ public class RhOverlay extends FrameLayout
 						mPadCentre.cap(RhTheme.role(RhTheme.ROLE_MOVE));
 					mPadMold.addView(mPadCentre, boxLB(mPadCell, mPadCell, left, bottom));
 					bindHold(mPadCentre, CENTRE_HOLD_MS,
-						new Runnable() { @Override public void run() { if(mFanOpen == null && mAnswers == null) openContextRadial(); } },
+						new Runnable() { @Override public void run() { if(mFanOpen == null && mAnswers == null && !mPicking) openContextRadial(); } },
 						new Runnable()
 					{
 						@Override
@@ -1921,8 +1927,8 @@ public class RhOverlay extends FrameLayout
 								layerPlaceTapped(4, mPadCentre);
 								return;
 							}
-							// The ninth direction, when one is wanted.
-							if(directionPending())
+							// The ninth direction, when one is wanted; the spot, when one is picked.
+							if(directionPending() || mPicking)
 								pressDirection('.');
 							else
 								execute(padCentreCommand(), mPadCentre);
@@ -2147,7 +2153,7 @@ public class RhOverlay extends FrameLayout
 		// Search mode pads each step with searches, before or after it (Lucas,
 		// 2026-09-23 -- his lower-Mines habit, made a mode).  Never while the core
 		// has asked for a direction: then the key is an answer, not a step.
-		if(RhPrefs.searchMode() && !mExpectsDirection)
+		if(RhPrefs.searchMode() && !mExpectsDirection && !mPicking)
 		{
 			int n = RhPrefs.searchCount();
 			String s = n > 1 ? n + "s" : "s";
@@ -2812,6 +2818,23 @@ public class RhOverlay extends FrameLayout
 
 	/** The nine places' answers while a question is up: a letter, 27 for Esc, 0 for none. */
 	private char[] mAnswers;
+
+	/**
+	 * The core is picking a spot (getpos: a polearm or Snickersnee applied,
+	 * farlook, travel).  The pad moves the cursor, and its centre is '.', which
+	 * picks the spot -- it sent the centre's own command, 's' (Lucas, 2026-09-28).
+	 */
+	private boolean mPicking;
+
+	public void setPicking(boolean on)
+	{
+		if(mPicking == on)
+			return;
+		mPicking = on;
+		if(on)
+			closeContextRadial();
+		refreshPadCentre();
+	}
 	private char mAnswerDefault;
 
 	/** False when the letters do not fit on the pad. */

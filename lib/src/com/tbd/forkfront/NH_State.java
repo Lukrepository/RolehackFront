@@ -906,6 +906,14 @@ public class NH_State
 
 		// ____________________________________________________________________________________
 		@Override
+		public void rhGetpos(boolean on)
+		{
+			if(mRolehackUI != null)
+				mRolehackUI.setPicking(on);
+		}
+
+		// ____________________________________________________________________________________
+		@Override
 		public void rhAnswers(String letters, int def)
 		{
 			if(mRolehackUI == null)

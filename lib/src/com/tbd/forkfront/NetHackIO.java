@@ -767,6 +767,20 @@ public class NetHackIO
 		mPrefs.edit().putString("rhMsgRules", mDecoder.decode(rules)).apply();
 	}
 
+	// Rolehack: the core is picking a spot (getpos), or has stopped.
+	@SuppressWarnings("unused")
+	private void rhGetpos(final int on)
+	{
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.rhGetpos(on != 0);
+			}
+		});
+	}
+
 	@SuppressWarnings("unused")
 	private void rhAnswers(final byte[] cletters, final int def)
 	{
