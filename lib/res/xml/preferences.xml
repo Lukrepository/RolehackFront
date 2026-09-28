@@ -173,7 +173,7 @@
 
 			<ListPreference
 				android:title="Colour vision"
-				android:summary="The game's colours in menus, messages and the text map, for colour-blind players. Protanopia and deuteranopia share a red-green palette and tritanopia has its own; monochrome changes only blessed, uncursed, cursed and HP, by brightness. Tiles are unchanged for now"
+				android:summary="The game's colours in menus, messages and the text map, for colour-blind players. Protanopia and deuteranopia share a red-green palette and tritanopia has its own; monochrome changes only blessed, uncursed, cursed and HP, by brightness. Tiles are unchanged for now. To recolour one monster on the text map, add lines to the options file (read when the game starts: close Rolehack and open it again) after a symset line (OPTIONS=symset:DECgraphics, or Enhanced1), such as OPTIONS=glyph:G_male_brown_mold/0-128-255 and the same for G_female_brown_mold (a pet is G_pet_male_ and G_pet_female_); put :U+2663 before the colour to change its symbol too, with Enhanced1"
 				android:persistent="true"
 				android:key="rhColourVision"
 				android:defaultValue="standard"

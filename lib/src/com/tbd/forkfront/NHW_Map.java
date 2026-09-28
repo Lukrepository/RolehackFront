@@ -571,7 +571,17 @@ public class NHW_Map implements NH_Window
 	public void printTile(final int x, final int y, final int tile, final int ch, final int col, final int special)
 	{
 		mTiles[y][x].glyph = tile;
-		mTiles[y][x].ch[0] = mDecoder.decode(ch);
+		// Rolehack (colour vision, layer 3): a Unicode character from a UTF-8
+		// symset or the player's glyph: option comes flagged 0x40000000
+		// (winandroid.c and_print_glyph()); anything else is the symset's byte.
+		if((ch & 0x40000000) != 0)
+			mTiles[y][x].ch = Character.toChars(ch & 0x1fffff);
+		else
+		{
+			if(mTiles[y][x].ch.length != 1)
+				mTiles[y][x].ch = new char[1];
+			mTiles[y][x].ch[0] = mDecoder.decode(ch);
+		}
 		mTiles[y][x].color = col;
 		mTiles[y][x].overlay = (short)special;
 		mUI.invalidateTile(x, y);
@@ -902,7 +912,7 @@ public class NHW_Map implements NH_Window
 					if(tile.glyph >= 0)
 					{
 						mPaint.setColor(fgColor);
-						canvas.drawText(tile.ch, 0, 1, dst.left, dst.bottom - mPaint.descent(), mPaint);
+						canvas.drawText(tile.ch, 0, tile.ch.length, dst.left, dst.bottom - mPaint.descent(), mPaint);
 					}
 
 					dst.offset(tileW, 0);
