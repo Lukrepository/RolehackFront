@@ -176,7 +176,7 @@ public final class RhDialogSkin
 			if(col == RhTheme.GLASS_BG)
 				continue; // inverse video, set above
 			int st = b.getSpanStart(fg), en = b.getSpanEnd(fg);
-			if(col == Color.GRAY)
+			if(RhTheme.isGameGrey(col))
 			{
 				b.removeSpan(fg);
 				b.setSpan(new ForegroundColorSpan(RhTheme.phosphorDim()), st, en, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -190,7 +190,7 @@ public final class RhDialogSkin
 	/** An item with no colour of its own comes from the port as white (or -1). */
 	private static boolean isPlain(int col)
 	{
-		return col == -1 || col == Color.WHITE || col == Color.BLACK;
+		return col == -1 || RhTheme.isGameWhite(col) || col == Color.BLACK;
 	}
 
 	// ____________________________________________________________________________________
@@ -289,7 +289,7 @@ public final class RhDialogSkin
 		Spanned t = item.getText();
 		ForegroundColorSpan[] fg = t.getSpans(0, t.length(), ForegroundColorSpan.class);
 		int col = fg.length > 0 ? fg[0].getForegroundColor() : -1;
-		if(col == Color.GRAY)
+		if(RhTheme.isGameGrey(col))
 			return RhTheme.phosphorDim();
 		return isPlain(col) ? RhTheme.phosphorText() : col;
 	}

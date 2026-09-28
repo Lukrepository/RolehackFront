@@ -172,6 +172,15 @@
 				android:entryValues="@array/rhPhosphorValues"/>
 
 			<ListPreference
+				android:title="Colour vision"
+				android:summary="The game's colours in menus, messages and the text map, for colour-blind players. Tiles are unchanged for now"
+				android:persistent="true"
+				android:key="rhColourVision"
+				android:defaultValue="standard"
+				android:entries="@array/rhColourVisionNames"
+				android:entryValues="@array/rhColourVisionValues"/>
+
+			<ListPreference
 				android:title="Screen font"
 				android:summary="Terminal styles: the message and status lines"
 				android:persistent="true"

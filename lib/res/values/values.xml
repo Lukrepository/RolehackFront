@@ -126,6 +126,20 @@
 		<item>green</item>
 		<item>white</item>
 	</string-array>
+	<string-array name="rhColourVisionNames">
+		<item>Standard</item>
+		<item>Protanopia (red-weak)</item>
+		<item>Deuteranopia (green-weak)</item>
+		<item>Tritanopia (blue-weak)</item>
+		<item>Monochrome</item>
+	</string-array>
+	<string-array name="rhColourVisionValues">
+		<item>standard</item>
+		<item>protanopia</item>
+		<item>deuteranopia</item>
+		<item>tritanopia</item>
+		<item>monochrome</item>
+	</string-array>
 	<string-array name="rhPadCellNames">
 		<item>Compact — 46 dp (7.3 mm)</item>
 		<item>Medium — 52 dp (8.3 mm)</item>

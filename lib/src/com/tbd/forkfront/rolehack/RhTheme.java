@@ -346,10 +346,75 @@ public final class RhTheme
 	public static int hpColour(int tier)
 	{
 		if(tier == HP_OK)
-			return phosphorText();
+			// Monochrome: quiet when well, brighter when hurt, inverse when
+			// critical, so every step is a step in lightness.
+			return sColourVision == CV_MONOCHROME ? phosphorDim() : phosphorText();
 		if(tier == HP_HURT)
 			return sPhosphor == 1 || sPhosphor == 2 ? HP_HURT_BRIGHT : HP_HURT_YELLOW;
 		return HP_CRITICAL_COLOUR;
+	}
+
+	/*
+	 * Colour vision (layer 2; Lucas, 2026-09-28): the game's 16 colours as each
+	 * setting draws them -- menus, messages and the text map.  The core sends a
+	 * colour as the RGB of winandroid.c's palette[], so a setting swaps it by its
+	 * place in that table (gameColour()).  Protanopia and deuteranopia share one
+	 * palette, as Okabe and Ito's does, with green turned toward cyan so blessed
+	 * reads apart from cursed; every colour pair that monsters sharing a letter
+	 * use stays at least 14 CIEDE2000 apart in either vision.  Tritanopia has its
+	 * own.  Monochrome moves only green, yellow and red (blessed, uncursed,
+	 * cursed) apart in lightness: fifteen colours cannot all be told apart by
+	 * lightness, which is the glyph option's job.  Searched by the workspace's
+	 * tools/cvd/cvd_modes.py; web.js MODE_COLORS matches.  Tiles are unchanged.
+	 */
+	public static final int CV_STANDARD = 0, CV_PROTANOPIA = 1, CV_DEUTERANOPIA = 2,
+	                        CV_TRITANOPIA = 3, CV_MONOCHROME = 4;
+	private static int sColourVision = CV_STANDARD;
+
+	/** winandroid.c's palette[]: CLR_BLACK .. CLR_WHITE; NO_COLOR (8) draws white. */
+	private static final int[] GAME_STANDARD = {
+		0x555555, 0xff0000, 0x008800, 0x664411, 0x0000ff, 0xff00ff, 0x00ffff, 0x888888,
+		0xffffff, 0xff9900, 0x00ff00, 0xffff00, 0x0088ff, 0xff77ff, 0x77ffff, 0xffffff };
+	private static final int[] GAME_REDGREEN = {
+		0x4c4f4e, 0xfe5a6b, 0x29b491, 0xa57007, 0x4881ff, 0x7134d5, 0x3f98a8, 0xc4c5cc,
+		0xfffff8, 0xc7b709, 0xa0f2a1, 0xffff0c, 0x9eb3ff, 0xc5166a, 0x00c5f6, 0xfffff8 };
+	private static final int[] GAME_TRITAN = {
+		0x4a4f4c, 0xfe002a, 0x5e8d42, 0xa97404, 0x9454d8, 0xab1b5b, 0x066670, 0xaab4b6,
+		0xf8ffff, 0xacaa26, 0x78ff00, 0xfbeb4c, 0x2daaf3, 0xff82ba, 0x07f4e7, 0xf8ffff };
+	private static final int[] GAME_MONOCHROME = {
+		0x555555, 0xfb8f79, 0x2d8e44, 0x664411, 0x0000ff, 0xff00ff, 0x00ffff, 0x888888,
+		0xffffff, 0xff9900, 0x00ff00, 0xffff75, 0x0088ff, 0xff77ff, 0x77ffff, 0xffffff };
+
+	public static int colourVision() { return sColourVision; }
+
+	/*
+	 * The glass's text rules know plain white and CLR_GRAY by value (plain
+	 * takes the phosphor, grey its dim: RhDialogSkin), so they must also know
+	 * them as the current setting draws them.
+	 */
+	public static boolean isGameWhite(int argb)
+	{
+		return argb == 0xffffffff || argb == gameColour(0xffffffff);
+	}
+
+	public static boolean isGameGrey(int argb)
+	{
+		return argb == 0xff888888 || argb == gameColour(0xff888888);
+	}
+
+	/** A game colour, as the core sent it, in the current Colour vision setting. */
+	public static int gameColour(int argb)
+	{
+		int[] pal = sColourVision == CV_PROTANOPIA || sColourVision == CV_DEUTERANOPIA ? GAME_REDGREEN
+		          : sColourVision == CV_TRITANOPIA ? GAME_TRITAN
+		          : sColourVision == CV_MONOCHROME ? GAME_MONOCHROME : null;
+		if(pal == null)
+			return argb;
+		int rgb = argb & 0xffffff;
+		for(int i = 0; i < GAME_STANDARD.length; i++)
+			if(GAME_STANDARD[i] == rgb)
+				return (argb & 0xff000000) | pal[i];
+		return argb;
 	}
 	public static int phosphorDim()  { return PHOSPHOR_DIM[sPhosphor]; }
 
@@ -562,6 +627,10 @@ public final class RhTheme
 		sCaseless = !prefs.getBoolean("rhCase", !"colourful".equals(style));
 		String p = prefs.getString("rhPhosphor", "color");
 		sPhosphor = "amber".equals(p) ? 1 : "green".equals(p) ? 2 : "white".equals(p) ? 3 : 0;
+		String cv = prefs.getString("rhColourVision", "standard");
+		sColourVision = "protanopia".equals(cv) ? CV_PROTANOPIA : "deuteranopia".equals(cv) ? CV_DEUTERANOPIA
+		              : "tritanopia".equals(cv) ? CV_TRITANOPIA : "monochrome".equals(cv) ? CV_MONOCHROME
+		              : CV_STANDARD;
 
 		String key = prefs.getString("rhKeyFont", "plex");
 		if(!key.equals(sKeyFont))

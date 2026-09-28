@@ -118,6 +118,7 @@ public class NHW_Map implements NH_Window
 	private boolean mIsRogue;
 	private NHW_Status mStatus;
 	private int mHealthColor;
+	private int mColourVision = -1;
 	private boolean mIsVisible;
 	private boolean mIsBlocking;
 	private int mWid;
@@ -406,6 +407,13 @@ public class NHW_Map implements NH_Window
 	@Override
 	public void preferencesUpdated(SharedPreferences prefs) {
 		mDoll.clear();
+		if(RhTheme.colourVision() != mColourVision)
+		{
+			// The text map draws its colours through RhTheme.gameColour().
+			mColourVision = RhTheme.colourVision();
+			if(mUI != null)
+				mUI.invalidate();
+		}
 		if(mHeroLook != null && mUI != null)
 			mUI.invalidateTile(mHeroLook.x, mHeroLook.y);
 		int borderOpacity = prefs.getInt("borderOpacity", 50);
@@ -867,7 +875,7 @@ public class NHW_Map implements NH_Window
 				for(int tileX = minTileX; tileX <= maxTileX; tileX++)
 				{
 					Tile tile = mTiles[tileY][tileX];
-					int fgColor = tile.color;
+					int fgColor = RhTheme.gameColour(tile.color);
 					int bgColor = 0xff000000;
 					if(tileX == mCursorPos.x && tileY == mCursorPos.y)
 					{

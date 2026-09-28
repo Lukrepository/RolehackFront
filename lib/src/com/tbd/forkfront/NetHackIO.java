@@ -9,6 +9,8 @@ import android.app.Activity;
 import android.os.Environment;
 import android.os.Handler;
 
+import com.tbd.forkfront.rolehack.RhTheme;
+
 public class NetHackIO
 {
 	private final Handler mHandler;
@@ -474,7 +476,7 @@ public class NetHackIO
 			@Override
 			public void run()
 			{
-				mNhHandler.putString(wid, attr, msg, append, color);
+				mNhHandler.putString(wid, attr, msg, append, RhTheme.gameColour(color));
 			}
 		});
 	}
@@ -488,7 +490,7 @@ public class NetHackIO
 			@Override
 			public void run()
 			{
-				mNhHandler.setHealthColor(color);
+				mNhHandler.setHealthColor(RhTheme.gameColour(color));
 			}
 		});
 	}
@@ -825,7 +827,7 @@ public class NetHackIO
 			@Override
 			public void run()
 			{
-				mNhHandler.addMenu(wid, tile, id, acc, groupAcc, attr, msg, bSelected, color);
+				mNhHandler.addMenu(wid, tile, id, acc, groupAcc, attr, msg, bSelected, RhTheme.gameColour(color));
 			}
 		});
 	}
