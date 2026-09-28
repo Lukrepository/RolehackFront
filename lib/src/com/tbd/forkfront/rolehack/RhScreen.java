@@ -737,9 +737,8 @@ public class RhScreen extends View
 
 	// ____________________________________________________________________________________
 	/**
-	 * The message band is glass, not map: a tap on it stops here, and answers only
-	 * while messages went by unshown -- the same rule the colourful style's
-	 * message panel followed.  Everything below it passes through to the map, the
+	 * The message band is glass, not map: a tap on it stops here and opens the
+	 * history.  Everything below it passes through to the map, the
 	 * status lines included: they are see-through, and the map under them is as
 	 * live as the rest (Lucas, 2026-09-24).
 	 *
@@ -767,9 +766,19 @@ public class RhScreen extends View
 		}
 		if(e.getY() >= msgBandPx(getContext(), mRows))
 			return false;
-		layoutRows();
-		if(mHidden > 0 && e.getActionMasked() == MotionEvent.ACTION_UP && mListener != null)
-			mListener.onHistory();
+		// A tap on the band opens the history, always: a band that answers only
+		// sometimes teaches that it never does (the message band research, step 4)
+		switch(e.getActionMasked())
+		{
+			case MotionEvent.ACTION_DOWN:
+				mDownX = e.getX();
+				mDownY = e.getY();
+				break;
+			case MotionEvent.ACTION_UP:
+				if(Math.hypot(e.getX() - mDownX, e.getY() - mDownY) < dp(16f) && mListener != null)
+					mListener.onHistory();
+				break;
+		}
 		return true;
 	}
 }

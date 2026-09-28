@@ -264,7 +264,9 @@ public class NHW_Message implements NH_Window
 		if(mLogView == null)
 			mLogView = new NHW_Text(0, mContext, mIO);
 
-		boolean highlightNew = mDispCount > SHOW_MAX_LINES;
+		// Rolehack: the band's page -- or the one it shows dimmed -- in bold at the
+		// log's end, so the reader sees where now is
+		int highlight = !mPage.isEmpty() ? mPage.size() : mOldPage.size();
 
 		int nLogs = 0;
 		for( int n = 0; n < MaxLog; n++ ) {
@@ -281,7 +283,7 @@ public class NHW_Message implements NH_Window
 			if(s != null)
 			{
 				nLogs--;
-				if( highlightNew && nLogs < mDispCount )
+				if( nLogs < highlight )
 					attr = TextAttr.ATTR_BOLD;
 				mLogView.printString(attr, s, 0, 0xffffffff);
 			}

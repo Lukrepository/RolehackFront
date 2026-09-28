@@ -511,6 +511,9 @@ public class RhOverlay extends FrameLayout
 			@Override
 			public void onHistory()
 			{
+				// not while a question waits: the key would be taken as its answer
+				if(mAnswers != null || directionPending())
+					return;
 				execute(RhCommands.PREV_MSGS, mScreen);
 			}
 
