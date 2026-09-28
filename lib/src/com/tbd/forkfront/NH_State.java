@@ -894,6 +894,18 @@ public class NH_State
 
 		// ____________________________________________________________________________________
 		@Override
+		public void rhAnswers(String letters, int def)
+		{
+			if(mRolehackUI == null)
+				return;
+			if(letters.length() == 0 || !isRolehackUIActive())
+				mRolehackUI.hideAnswers();
+			else
+				mRolehackUI.showAnswers(letters, (char) def);
+		}
+
+		// ____________________________________________________________________________________
+		@Override
 		public void destroyWindow(final int wid)
 		{
 			int i = getWindowI(wid);

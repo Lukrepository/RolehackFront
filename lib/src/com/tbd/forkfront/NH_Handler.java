@@ -35,6 +35,9 @@ public interface NH_Handler
 
 	/** Rolehack: a message longer than the band: show it from this page row. */
 	void rhMsgScroll(int row);
+
+	/** Rolehack: a question's answers on the pad; empty letters take them down. */
+	void rhAnswers(String letters, int def);
 	void rawPrint(int attr, String msg);
 	void printTile(int wid, int x, int y, int tile, int ch, int col, int special);
 	void ynFunction(String question, byte[] choices, int def);

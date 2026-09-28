@@ -114,14 +114,17 @@ public class NHW_Message implements NH_Window
 		boolean logOnly = (attr & ATTR_LOG_ONLY) != 0;
 		if(!logOnly)
 		{
-			if(append < 0 && !mPage.isEmpty())
+			// An answer is appended to its question after the key that gave it,
+			// which has already dimmed the page: it goes where the question is.
+			ArrayList<String> onto = !mPage.isEmpty() ? mPage : mOldPage;
+			if(append < 0 && !onto.isEmpty())
 			{
-				String l = mPage.get(mPage.size() - 1);
+				String l = onto.get(onto.size() - 1);
 				int cut = Math.max(0, l.length() + append + 1);
-				mPage.set(mPage.size() - 1, l.substring(0, Math.min(cut, l.length())) + str);
+				onto.set(onto.size() - 1, l.substring(0, Math.min(cut, l.length())) + str);
 			}
-			else if(append > 0 && !mPage.isEmpty())
-				mPage.set(mPage.size() - 1, mPage.get(mPage.size() - 1) + str);
+			else if(append > 0 && !onto.isEmpty())
+				onto.set(onto.size() - 1, onto.get(onto.size() - 1) + str);
 			else if(append == 0)
 			{
 				mPage.add(str);

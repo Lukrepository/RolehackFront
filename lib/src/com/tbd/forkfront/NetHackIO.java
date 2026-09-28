@@ -733,6 +733,20 @@ public class NetHackIO
 	}
 
 	@SuppressWarnings("unused")
+	private void rhAnswers(final byte[] cletters, final int def)
+	{
+		final String letters = mDecoder.decode(cletters);
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.rhAnswers(letters, def);
+			}
+		});
+	}
+
+	@SuppressWarnings("unused")
 	private void rhMsgScroll(final int row)
 	{
 		mHandler.post(new Runnable()

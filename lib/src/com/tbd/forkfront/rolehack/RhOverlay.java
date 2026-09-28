@@ -1799,8 +1799,8 @@ public class RhOverlay extends FrameLayout
 	 */
 	private void refreshPadCentre()
 	{
-		// A layer owns the centre while it is up.
-		if(mPadCentre == null || mFanOpen != null)
+		// A layer, or a question's answers, owns the centre while it is up.
+		if(mPadCentre == null || mFanOpen != null || mAnswers != null)
 			return;
 
 		if(directionPending())
@@ -1899,12 +1899,17 @@ public class RhOverlay extends FrameLayout
 						mPadCentre.cap(RhTheme.role(RhTheme.ROLE_MOVE));
 					mPadMold.addView(mPadCentre, boxLB(mPadCell, mPadCell, left, bottom));
 					bindHold(mPadCentre, CENTRE_HOLD_MS,
-						new Runnable() { @Override public void run() { if(mFanOpen == null) openContextRadial(); } },
+						new Runnable() { @Override public void run() { if(mFanOpen == null && mAnswers == null) openContextRadial(); } },
 						new Runnable()
 					{
 						@Override
 						public void run()
 						{
+							if(mAnswers != null)
+							{
+								answerPlace(4);
+								return;
+							}
 							if(mFanOpen != null)
 							{
 								layerPlaceTapped(4, mPadCentre);
@@ -1935,6 +1940,11 @@ public class RhOverlay extends FrameLayout
 					@Override
 					public void run()
 					{
+						if(mAnswers != null)
+						{
+							answerPlace(place);
+							return;
+						}
 						if(mFanOpen != null)
 						{
 							layerPlaceTapped(place, me);
@@ -1953,6 +1963,8 @@ public class RhOverlay extends FrameLayout
 
 		mLayerFrame = new LayerFrame(mContext);
 		addView(mLayerFrame, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+		if(mAnswers != null)
+			paintAnswers();   // the overlay was rebuilt (a rotation) mid-question
 	}
 
 	/**
@@ -2782,6 +2794,114 @@ public class RhOverlay extends FrameLayout
 			mLayerFrame.show(hub.label.replace('\n', ' '), RhTheme.layerAccent(kind));
 	}
 
+	// ____________________________________________________________________________________
+	// A question's answers on the pad, as the web port has them (Lucas,
+	// 2026-09-28: at the end of a run the ynq questions were in the band and the
+	// pad could not answer them -- its keys go in as directions, which a question
+	// throws away).  A letter that is also a direction key sits where that
+	// direction is -- y up-left and n down-right, as those keys already are --
+	// the rest take the free places in order, and the centre is q, or Esc.  The
+	// default answer's lamp is lit.  The core shows and hides them
+	// (winandroid.c, rh_answers()).
+
+	/** The nine places' answers while a question is up: a letter, 27 for Esc, 0 for none. */
+	private char[] mAnswers;
+	private char mAnswerDefault;
+
+	/** False when the letters do not fit on the pad. */
+	public boolean showAnswers(String letters, char def)
+	{
+		char[] places = new char[9];
+		java.util.List<Character> rest = new java.util.ArrayList<>();
+		for(int i = 0; i < letters.length(); i++)
+		{
+			char ch = letters.charAt(i);
+			if(ch == 'q')
+				continue;
+			int at = -1;
+			for(int p = 0; p < 9; p++)
+				if(RhCommands.PAD_KEYS[p] == ch)
+					at = p;
+			if(at >= 0 && at != 4 && places[at] == 0)
+				places[at] = ch;
+			else
+				rest.add(ch);
+		}
+		for(char ch : rest)
+		{
+			int free = -1;
+			for(int p = 0; p < 9 && free < 0; p++)
+				if(p != 4 && places[p] == 0)
+					free = p;
+			if(free < 0)
+				return false;
+			places[free] = ch;
+		}
+		places[4] = letters.indexOf('q') >= 0 ? 'q' : (char) 27;
+		closeFan();
+		closeRadial();
+		closeContextRadial();
+		disarm();
+		mAnswers = places;
+		mAnswerDefault = def;
+		paintAnswers();
+		return true;
+	}
+
+	public void hideAnswers()
+	{
+		if(mAnswers == null)
+			return;
+		mAnswers = null;
+		for(int place = 0; place < 9; place++)
+		{
+			RhFace f = padFace(place);
+			if(f != null)
+				f.lit(false);
+		}
+		if(mLayerFrame != null)
+			mLayerFrame.hide();
+		restorePad();
+	}
+
+	private void paintAnswers()
+	{
+		if(mAnswers == null)
+			return;
+		int[] cap = RhTheme.capFor(RhTheme.A90);
+		for(int place = 0; place < 9; place++)
+		{
+			RhFace f = padFace(place);
+			if(f == null)
+				continue;
+			char ch = mAnswers[place];
+			f.uppercase(false).lit(false);
+			if(ch == 0)
+			{
+				// an empty place is an empty key: dark and dashed, never a button
+				f.cap(null).placeholder(true).label("", 10f, 0f).sub(null, 7f, RhTheme.RAW_KEY, 1f);
+				continue;
+			}
+			// The default in words, as the web has it: a lit legend washes out on
+			// an amber key, and words do not lean on colour.
+			String word = ch == 'y' ? "Yes" : ch == 'n' ? "No" : ch == 'q' ? "Quit" : ch == 27 ? "Esc" : String.valueOf(ch);
+			boolean isDef = ch == mAnswerDefault;
+			f.cap(cap).placeholder(false)
+			 .label(isDef ? word + "\ndefault" : word, isDef ? 10f : (word.length() > 1 ? 12f : 18f), 0.02f)
+			 .sub(ch == 27 ? "Esc" : String.valueOf(ch), 7f, RhTheme.RAW_KEY, 1f);
+		}
+		if(mLayerFrame != null)
+			mLayerFrame.showLabel("ANSWER", RhTheme.LAMP_AMBER);
+	}
+
+	private void answerPlace(int place)
+	{
+		char ch = mAnswers == null ? 0 : mAnswers[place];
+		if(ch == 0)
+			return;
+		mHost.sendCommand(ch == 27 ? "\\e" : String.valueOf(ch));
+	}
+
 	/** The pad as it was: arrows, and the centre's own command. */
 	private void restorePad()
 	{
@@ -2879,7 +2999,12 @@ public class RhOverlay extends FrameLayout
 
 		void show(String title, int accent)
 		{
-			mTitle = title + " LAYER";
+			showLabel(title + " LAYER", accent);
+		}
+
+		void showLabel(String label, int accent)
+		{
+			mTitle = label;
 			mAccent = accent;
 			setVisibility(VISIBLE);
 			invalidate();
@@ -3058,6 +3183,8 @@ public class RhOverlay extends FrameLayout
 	/** Hold on a hub: its layer comes up on the pad. */
 	private void openFan(HubView hv)
 	{
+		if(mAnswers != null)
+			return;   // a question has the pad
 		closeCandidates();
 		closeChips();
 		closeDrawer();
