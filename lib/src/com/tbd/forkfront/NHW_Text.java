@@ -19,6 +19,18 @@ public class NHW_Text implements NH_Window
 	private UI mUI;
 	private int mWid;
 
+	/** Rolehack: a long press on a line of this window (the message history). */
+	public interface LineListener
+	{
+		void onLine(String line);
+	}
+	private LineListener mLineListener;
+
+	public void setLineListener(LineListener l)
+	{
+		mLineListener = l;
+	}
+
 	// ____________________________________________________________________________________
 	public NHW_Text(int wid, Activity context, NetHackIO io)
 	{
@@ -178,6 +190,16 @@ public class NHW_Text implements NH_Window
 		View.OnTouchListener mTouchListener = new View.OnTouchListener() {
 			Integer mPointerId;
 			float mPointerX, mPointerY;
+			// Rolehack: a long press on a line names it (setLineListener)
+			boolean mLongPressed;
+			final Runnable mLongPress = new Runnable() {
+				@Override
+				public void run() {
+					mLongPressed = true;
+					longPressAt(mPressX, mPressY);
+				}
+			};
+			float mPressX, mPressY;
 			@Override
 			public boolean onTouch(View v, MotionEvent event) {
 				switch(getAction(event)) {
@@ -185,6 +207,13 @@ public class NHW_Text implements NH_Window
 						mPointerId = event.getPointerId(getActionIndex(event));
 						mPointerX = event.getRawX();
 						mPointerY = event.getRawY();
+						if(v == mTextView && mLineListener != null) {
+							mLongPressed = false;
+							mPressX = event.getX();
+							mPressY = event.getY();
+							mTextView.removeCallbacks(mLongPress);
+							mTextView.postDelayed(mLongPress, ViewConfiguration.getLongPressTimeout());
+						}
 					break;
 
 					case MotionEvent.ACTION_MOVE:
@@ -200,21 +229,52 @@ public class NHW_Text implements NH_Window
 
 							if(Math.abs(dx) > th || Math.abs(dy) > th) {
 								mIsScrolling = true;
+								mTextView.removeCallbacks(mLongPress);
 							}
 						}
 					break;
 
 					case MotionEvent.ACTION_UP:
 						mPointerId = null;
-						if(!mIsScrolling) {
+						mTextView.removeCallbacks(mLongPress);
+						if(!mIsScrolling && !mLongPressed && isVisible()) {
 							close();
 						}
+						mIsScrolling = false;
+					break;
+
+					case MotionEvent.ACTION_CANCEL:
+						mTextView.removeCallbacks(mLongPress);
 						mIsScrolling = false;
 					break;
 				}
 				return false;
 			}
 		};
+
+		// ____________________________________________________________________________________
+		/** The line under a long press: the window closes and the listener has it. */
+		private void longPressAt(float x, float y)
+		{
+			if(mLineListener == null || !isVisible())
+				return;
+			CharSequence text = mTextView.getText();
+			if(text == null || text.length() == 0)
+				return;
+			int off = Math.max(0, Math.min(mTextView.getOffsetForPosition(x, y), text.length() - 1));
+			String all = text.toString();
+			int start = all.lastIndexOf('\n', off - 1) + 1;
+			int end = all.indexOf('\n', off);
+			if(end < 0)
+				end = all.length();
+			String line = all.substring(start, Math.max(start, end)).trim();
+			if(line.length() == 0)
+				return;
+			mTextView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+			mIsBlocking = false;   // the core is told by the listener, not by a key
+			hide();
+			mLineListener.onLine(line);
+		}
 
 		// ____________________________________________________________________________________
 		public void update()

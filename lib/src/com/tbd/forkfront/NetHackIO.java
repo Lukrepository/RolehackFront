@@ -144,6 +144,7 @@ public class NetHackIO
 	// ____________________________________________________________________________________
 	public NetHackIO(Activity context, NH_Handler nhHandler, ByteDecoder decoder)
 	{
+		mPrefs = android.preference.PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
 		mNhHandler = nhHandler;
 		mDecoder = decoder;
 		mLibraryName = context.getResources().getString(R.string.libraryName);
@@ -732,6 +733,38 @@ public class NetHackIO
 				mNhHandler.rhMore(on != 0);
 			}
 		});
+	}
+
+	// Rolehack: message rules (the core's rhrules.c).  A long press on a line of
+	// the history names it and sends RH_KEY_RULE; the core fetches the text.
+	// The rules are kept in the settings from game to game.
+	private final android.content.SharedPreferences mPrefs;
+	private volatile String mRuleText = "";
+	public static final char RH_KEY_RULE = (char) 0xE001;
+	public static final char RH_KEY_RULES = (char) 0xE002;
+
+	public void requestRule(String line)
+	{
+		mRuleText = line == null ? "" : line;
+		sendKeyCmd(RH_KEY_RULE);
+	}
+
+	@SuppressWarnings("unused")
+	private byte[] rhRuleText()
+	{
+		return mRuleText.getBytes();
+	}
+
+	@SuppressWarnings("unused")
+	private byte[] rhLoadRules()
+	{
+		return mPrefs.getString("rhMsgRules", "").getBytes();
+	}
+
+	@SuppressWarnings("unused")
+	private void rhSaveRules(final byte[] rules)
+	{
+		mPrefs.edit().putString("rhMsgRules", mDecoder.decode(rules)).apply();
 	}
 
 	@SuppressWarnings("unused")

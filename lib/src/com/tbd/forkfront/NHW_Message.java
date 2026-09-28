@@ -262,7 +262,18 @@ public class NHW_Message implements NH_Window
 	public void showLog(boolean bBlocking)
 	{
 		if(mLogView == null)
+		{
 			mLogView = new NHW_Text(0, mContext, mIO);
+			// Rolehack: a long press on a line makes a message rule from it
+			mLogView.setLineListener(new NHW_Text.LineListener()
+			{
+				@Override
+				public void onLine(String line)
+				{
+					mIO.requestRule(line);
+				}
+			});
+		}
 
 		// Rolehack: the band's page -- or the one it shows dimmed -- in bold at the
 		// log's end, so the reader sees where now is

@@ -230,6 +230,12 @@ public final class RhCommands
 	 */
 	public static final Item STATUS_TOGGLE = i("Status lines", "#status");
 
+	/**
+	 * The message rules' list (the core's rhrules.c).  Intercepted, and sent as
+	 * a key only the window port reads; kept out of PINNABLE with the others.
+	 */
+	public static final Item MSG_RULES = i("Message rules", "#rules");
+
 	/*
 	 * WORLD and GAME are the long tail: the common commands have their own keys,
 	 * so these two are for finding a command, not for speed (Lucas, 2026-09-26,
@@ -281,6 +287,7 @@ public final class RhCommands
 		i("Save", "S"), i("Quit", "M-q"),
 		head("Settings"),
 		i("Options", "O"), i("All options", "mO"), i("Autopickup", "@"), i("Explore mode", "M-X"),
+		MSG_RULES,
 		head("Names and notes"),
 		i("Call/name", "C"), i("Name type", "M-n"), i("Annotate", "M-A"),
 		head("Display"),
@@ -861,6 +868,7 @@ public final class RhCommands
 		PINNABLE.remove(SEARCH_MODE.key);
 		PINNABLE.remove(CASE_TOGGLE.key);
 		PINNABLE.remove(STATUS_TOGGLE.key);
+		PINNABLE.remove(MSG_RULES.key);
 	}
 
 	/** The face for a persisted key, or null if nothing answers to it. */

@@ -49,6 +49,9 @@ public class RhOverlay extends FrameLayout
 		/** Run a key sequence in Cmd.KeySequnece notation ("F", "^D", "M-p", "20."). */
 		void sendCommand(String keySequence);
 
+		/** One key straight to the core, past the notation (NetHackIO.RH_KEY_RULES). */
+		void sendRawKey(char key);
+
 		/** Open ForkFront's own settings activity (the MENU face). */
 		void openSettings();
 
@@ -459,7 +462,7 @@ public class RhOverlay extends FrameLayout
 				int fillIndex = mFillIndex;
 				closeDrawer();
 				if(item == RhCommands.SEARCH_MODE || item == RhCommands.CASE_TOGGLE
-						|| item == RhCommands.STATUS_TOGGLE)
+						|| item == RhCommands.STATUS_TOGGLE || item == RhCommands.MSG_RULES)
 					return;
 				if(fillHub != null)
 				{
@@ -4368,6 +4371,12 @@ public class RhOverlay extends FrameLayout
 		{
 			closeFan();
 			cycleStatusLines();
+			return;
+		}
+		if(item == RhCommands.MSG_RULES)
+		{
+			closeFan();
+			mHost.sendRawKey(com.tbd.forkfront.NetHackIO.RH_KEY_RULES);
 			return;
 		}
 		flashKey(item, from);

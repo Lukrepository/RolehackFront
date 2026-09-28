@@ -604,6 +604,12 @@ public class NH_State
 		mRolehackUI = RhOverlay.attach(context, R.id.map_frame, new RhOverlay.Host()
 		{
 			@Override
+			public void sendRawKey(char key)
+			{
+				mIO.sendKeyCmd(key);
+			}
+
+			@Override
 			public void sendCommand(String keySequence)
 			{
 				new Cmd.KeySequnece(NH_State.this, keySequence, "").execute(new Cmd.ExecuteFinishedHandler()
