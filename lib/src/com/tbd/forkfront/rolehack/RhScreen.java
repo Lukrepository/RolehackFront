@@ -216,8 +216,10 @@ public class RhScreen extends View
 			return;
 		boolean compact = mode == RhPrefs.StatusLines.COMPACT;
 
+		// The phosphor is plain text's colour.  HP's colour and the conditions'
+		// severities show under every phosphor, as the menu colours do: they are
+		// warnings (Lucas, 2026-09-27: "keep the status colours under amber too").
 		int text = RhTheme.phosphorText();
-		boolean colour = RhTheme.phosphorColour();
 		float x0 = dp(PAD_H);
 
 		if(mode == RhPrefs.StatusLines.HIDDEN)
@@ -230,7 +232,7 @@ public class RhScreen extends View
 			Paint.FontMetrics fm = mStat.getFontMetrics();
 			float lineH = dp(LINE);
 			float baseline = h - dp(4f) - lineH + (lineH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
-			drawBadges(canvas, x0, w - dp(PAD_H), baseline, fm, colour, text);
+			drawBadges(canvas, x0, w - dp(PAD_H), baseline, fm);
 			return;
 		}
 		float top = h - dp(statusBand()) + dp(3.5f);
@@ -264,8 +266,7 @@ public class RhScreen extends View
 		mStat.setShadowLayer(dp(2.5f), 0f, 0f, (text & 0x00ffffff) | 0x70000000);
 
 		float hp = mStatus.hpFraction();
-		int hpColour = !colour ? text
-				: hp >= 0.66f ? 0xff63e07c : hp >= 0.33f ? 0xfff5b342 : 0xffff5a44;
+		int hpColour = hp >= 0.66f ? 0xff63e07c : hp >= 0.33f ? 0xfff5b342 : 0xffff5a44;
 
 		// Line 1: the title under its HP bar, then where and when.
 		float tw = mStat.measureText(title);
@@ -304,19 +305,19 @@ public class RhScreen extends View
 		if(compact)
 		{
 			mStat.clearShadowLayer();
-			drawBadges(canvas, tail1X + mStat.measureText(tail1) + dp(8f), right, base[0], fm, colour, text);
+			drawBadges(canvas, tail1X + mStat.measureText(tail1) + dp(8f), right, base[0], fm);
 		}
 		else
 		{
 			canvas.drawText(stats, x0, base[2], mStat);
 			mStat.clearShadowLayer();
-			drawBadges(canvas, x0 + mStat.measureText(stats) + dp(8f), right, base[2], fm, colour, text);
+			drawBadges(canvas, x0 + mStat.measureText(stats) + dp(8f), right, base[2], fm);
 		}
 	}
 
 	/** As many conditions as fit between left and right, worst first; the rest become "+N". */
 	private void drawBadges(Canvas canvas, float left, float right, float baseline,
-			Paint.FontMetrics fm, boolean colour, int text)
+			Paint.FontMetrics fm)
 	{
 		List<RhBadges.Badge> badges = RhBadges.badgesFor(mStatus);
 		float padX = dp(3f), gap = dp(4f);
@@ -339,7 +340,7 @@ public class RhScreen extends View
 			String more = "+" + hidden;
 			float mw = mStat.measureText(more) + 2 * padX;
 			bx -= mw + (shown > 0 ? gap : 0f);
-			drawBadge(canvas, bx, baseline, fm, more, colour ? 0xff2a302d : text, colour ? 0xffffffff : RhTheme.GLASS_BG);
+			drawBadge(canvas, bx, baseline, fm, more, 0xff2a302d, 0xffffffff);
 			bx += mw + (shown > 0 ? gap : 0f);
 		}
 		for(int i = 0; i < shown; i++)
@@ -347,7 +348,7 @@ public class RhScreen extends View
 			RhBadges.Badge b = badges.get(i);
 			float bw = mStat.measureText(b.text) + 2 * padX;
 			drawBadge(canvas, bx, baseline, fm, b.text,
-					colour ? RhBadges.bg(b.tier) : text, colour ? RhBadges.fg(b.tier) : RhTheme.GLASS_BG);
+					RhBadges.bg(b.tier), RhBadges.fg(b.tier));
 			bx += bw + gap;
 		}
 	}
