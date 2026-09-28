@@ -136,6 +136,7 @@ public interface Cmd
 
 			public EnumSet<Input.Modifier> mod;
 			public char ch;
+			public String ext;	// Rolehack: a command by name, sent whole
 		}
 
 		private NH_State mState;
@@ -197,8 +198,17 @@ public interface Cmd
 				{
 					char ch = seq.get(0).ch;
 					EnumSet<Modifier> mod = seq.get(0).mod;
-					Log.print("cmdpanel: " + Character.toString(ch));
-					mState.handleKeyDown(ch, Input.nhKeyFromMod(ch, mod), Input.toKeyCode(ch), mod, 0, true);
+					String ext = seq.get(0).ext;
+					if(ext != null)
+					{
+						Log.print("cmdpanel: #" + ext);
+						mState.sendExtCmd(ext);
+					}
+					else
+					{
+						Log.print("cmdpanel: " + Character.toString(ch));
+						mState.handleKeyDown(ch, Input.nhKeyFromMod(ch, mod), Input.toKeyCode(ch), mod, 0, true);
+					}
 					seq.remove(0);
 					if(seq.size() > 0)
 					{
@@ -219,6 +229,28 @@ public interface Cmd
 			{
 				EnumSet<Input.Modifier> mod = Input.modifiers();
 				char ch = mCommand.charAt(i);
+				// Rolehack: "#name" and a newline is a command by name.  Typed
+				// into the '#' menu, its letters picked other commands; it goes
+				// whole (NetHackIO.sendExtCmd) (Lucas, 2026-09-28).
+				if(ch == '#')
+				{
+					int j = i + 1;
+					while(j < mCommand.length() && Character.isLetterOrDigit(mCommand.charAt(j)))
+						j++;
+					int end = -1;
+					if(j > i + 1 && j < mCommand.length() && mCommand.charAt(j) == '\n')
+						end = j + 1;
+					else if(j > i + 1 && mCommand.startsWith("\\n", j))
+						end = j + 2;
+					if(end > 0)
+					{
+						KeyCmd k = new KeyCmd(ch, mod);
+						k.ext = mCommand.substring(i + 1, j);
+						mSeq.add(k);
+						i = end - 1;
+						continue;
+					}
+				}
 				if(ch == '^' && mCommand.length() - i >= 2)
 				{
 					char n = mCommand.charAt(i + 1);

@@ -69,6 +69,17 @@ public class NetHackIO
 		}
 	}
 
+	// Rolehack: a command by name, sent as RH_KEY_EXTCMD; its name is taken
+	// with the key, so the two never come apart.
+	private static class ExtCmd extends KeyCmd {
+		private final String name;
+
+		ExtCmd(String name) {
+			super(RH_KEY_EXTCMD);
+			this.name = name;
+		}
+	}
+
 	private static class PosCmd implements Cmd {
 		private final char key;
 		private final int x, y;
@@ -400,6 +411,8 @@ public class NetHackIO
 		Cmd cmd = discardUntil(CmdType.KEY);
 		if(cmd.type() == CmdType.KEY)
 			key = ((KeyCmd)cmd).key;
+		if(cmd instanceof ExtCmd)
+			mExtName = ((ExtCmd)cmd).name;
 
 		decReady();
 		return key;
@@ -429,6 +442,8 @@ public class NetHackIO
 
 		if(cmd.type() == CmdType.KEY) {
 			key = ((KeyCmd)cmd).key;
+			if(cmd instanceof ExtCmd)
+				mExtName = ((ExtCmd)cmd).name;
 		} else if(cmd.type() == CmdType.POS) {
 			key = ((PosCmd)cmd).key;
 			pos[0] = ((PosCmd)cmd).x;
@@ -742,6 +757,25 @@ public class NetHackIO
 	private volatile String mRuleText = "";
 	public static final char RH_KEY_RULE = (char) 0xE001;
 	public static final char RH_KEY_RULES = (char) 0xE002;
+
+	// Rolehack: a command by name ("#levelchange" and a newline on a key or
+	// in a macro), sent whole: typed into the '#' menu, its letters picked
+	// other commands.  The core takes it at the command prompt only
+	// (winandroid.c) and fetches the name with the key.
+	public static final char RH_KEY_EXTCMD = (char) 0xE003;
+	private volatile String mExtName = "";
+
+	public void sendExtCmd(String name)
+	{
+		mNhHandler.hideDPad();
+		mCmdQue.add(new ExtCmd(name));
+	}
+
+	@SuppressWarnings("unused")
+	private byte[] rhExtCmdName()
+	{
+		return mExtName.getBytes();
+	}
 
 	public void requestRule(String line)
 	{

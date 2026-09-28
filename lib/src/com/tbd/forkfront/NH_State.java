@@ -388,6 +388,14 @@ public class NH_State
 	}
 
 	// ____________________________________________________________________________________
+	// Rolehack: a command by name ("#levelchange" and a newline in a key
+	// sequence), sent whole rather than typed into the '#' menu.
+	public void sendExtCmd(String name)
+	{
+		mIO.sendExtCmd(name);
+	}
+
+	// ____________________________________________________________________________________
 	public void waitReady()
 	{
 		mIO.waitReady();
