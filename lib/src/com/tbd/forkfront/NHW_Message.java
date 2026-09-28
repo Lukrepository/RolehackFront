@@ -1,5 +1,7 @@
 package com.tbd.forkfront;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import android.app.Activity;
 import android.content.SharedPreferences;
@@ -10,6 +12,13 @@ import android.widget.TextView;
 public class NHW_Message implements NH_Window
 {
 	protected static final int SHOW_MAX_LINES = 3;
+	/**
+	 * Rolehack: an attribute bit from the core (winandroid.c RH_LOG_ONLY) for a
+	 * message that goes to the log but not the band -- the rest of a turn skipped
+	 * with Esc at --More--, or history restored with a saved game.
+	 */
+	public static final int ATTR_LOG_ONLY = 1 << 30;
+	private static final int PAGE_MAX = 50;
 
 	private NetHackIO mIO;
 	private Activity mContext;
@@ -25,6 +34,15 @@ public class NHW_Message implements NH_Window
 	private boolean mSuppressed;
 	private int mWid;
 	private int mOpacity;
+	/**
+	 * Rolehack: the message band's page -- the messages since the core last
+	 * cleared the window, which it does at the start of each page -- and the
+	 * page before it, which the band shows dimmed until a new one starts.
+	 */
+	private ArrayList<String> mPage = new ArrayList<>();
+	private ArrayList<String> mOldPage = new ArrayList<>();
+	private int mScroll;
+	private boolean mMorePrompt;
 
 	// ____________________________________________________________________________________
 	public NHW_Message(Activity context, NetHackIO io)
@@ -71,6 +89,12 @@ public class NHW_Message implements NH_Window
 	public void clear()
 	{
 		mDispCount = 0;
+		if(!mPage.isEmpty())
+		{
+			mOldPage = mPage;
+			mPage = new ArrayList<>();
+		}
+		mScroll = 0;
 		mUI.clear();
 	}
 
@@ -87,6 +111,32 @@ public class NHW_Message implements NH_Window
 	public void printString(int attr, String str, int append, int color)
 	{
 		mCurrentIdx = getIndex(mLogCount - 1);
+		boolean logOnly = (attr & ATTR_LOG_ONLY) != 0;
+		if(!logOnly)
+		{
+			if(append < 0 && !mPage.isEmpty())
+			{
+				String l = mPage.get(mPage.size() - 1);
+				int cut = Math.max(0, l.length() + append + 1);
+				mPage.set(mPage.size() - 1, l.substring(0, Math.min(cut, l.length())) + str);
+			}
+			else if(append > 0 && !mPage.isEmpty())
+				mPage.set(mPage.size() - 1, mPage.get(mPage.size() - 1) + str);
+			else if(append == 0)
+			{
+				mPage.add(str);
+				if(mPage.size() > PAGE_MAX)
+					mPage.remove(0);
+			}
+		}
+		else if(append == 0)
+		{
+			// into the log, but neither the band nor the classic line
+			mCurrentIdx = getIndex(mCurrentIdx + 1);
+			mLog[mCurrentIdx] = str;
+			mLogCount++;
+			return;
+		}
 
 		if( append < 0 && mLogCount > 0 ) {
 			append++;
@@ -125,6 +175,16 @@ public class NHW_Message implements NH_Window
 		}
 		return sb.toString();
 	}
+
+	// ____________________________________________________________________________________
+	/** Rolehack: the band's page, the page before it, its scroll, --More--. */
+	public List<String> bandPage()  { return new ArrayList<>(mPage); }
+	public List<String> bandOld()   { return new ArrayList<>(mOldPage); }
+	public int bandScroll()         { return mScroll; }
+	public boolean bandMore()       { return mMorePrompt; }
+
+	public void setMorePrompt(boolean on) { mMorePrompt = on; }
+	public void setScroll(int row)        { mScroll = Math.max(0, row); }
 
 	// ____________________________________________________________________________________
 	public void setSuppressed(boolean suppressed)

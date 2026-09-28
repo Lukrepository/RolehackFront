@@ -15,6 +15,8 @@ import android.text.TextPaint;
 import android.view.MotionEvent;
 import android.view.View;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -32,11 +34,17 @@ import java.util.List;
  * The status can be cut to two lines, leaving off the attributes, or hidden
  * for more map, all but its conditions (RhPrefs.statusLines; Lucas, 2026-09-24).  Its band is smoked
  * glass the map shows through, and a tap on it reaches the map.
+ *
+ * The message band is tty's top line, three rows high in portrait and two in
+ * landscape, and it never grows over the map.  The core decides when it is
+ * full and waits at --More-- (winandroid.c, rh_msg_place()), measuring each
+ * message with the same wrap() this view draws with; a message longer than
+ * the band is shown a band at a time.  Messages the player has acted on are
+ * dimmed, as on the web (Lucas, 2026-09-28, after the message band research).
  */
 public class RhScreen extends View
 {
-	/** Heights of the message and status bands, design dp; the map lives between. */
-	public static final float MSG_BAND    = 36f;
+	/** Height of the status band, design dp; the map lives between it and the message band. */
 	public static final float STATUS_BAND = 48f;
 
 	/** The status band's glass: dark enough to read on, light enough to see the map through. */
@@ -46,12 +54,144 @@ public class RhScreen extends View
 	private static final float MSG_SIZE  = 11f;
 	private static final float STAT_SIZE = 10.5f;
 	private static final float LINE      = 13.5f;
-	private static final int   MAX_MSG_LINES = 4;
+
+	/** Rows of the message band: three in portrait, two in landscape (Lucas, 2026-09-28). */
+	public static int msgRows(boolean portrait) { return portrait ? 3 : 2; }
+
+	/** The message band's height for its rows, design dp: 5 above, 4 below, LINE apart. */
+	public static float msgBand(int rows) { return 5f + rows * LINE + 4f; }
 
 	public interface Listener
 	{
 		/** A tap on the message lines while earlier messages have scrolled away. */
 		void onHistory();
+
+		/** A tap on the glass at --More--: Space. */
+		void onMore();
+	}
+
+	/**
+	 * What the core needs to decide when the band is full, read on the NetHack
+	 * thread (NetHackIO.rhMsgBand, rhMsgRows): its rows, its text's width and
+	 * font.  A copy of the paint, so the two threads never share one.  Null
+	 * while no band is on screen -- the classic message line, as it was.
+	 */
+	private static final class Band
+	{
+		final TextPaint paint;
+		final float width, slot;
+		final int rows;
+
+		Band(TextPaint paint, float width, float slot, int rows)
+		{
+			this.paint = paint;
+			this.width = width;
+			this.slot = slot;
+			this.rows = rows;
+		}
+	}
+	private static volatile Band sBand;
+	private static volatile RhScreen sOwner;
+
+	/** For the core: the band's rows; negative when a full band shouldn't pause; 0, no band. */
+	public static int bandForCore()
+	{
+		Band b = sBand;
+		if(b == null)
+			return 0;
+		return RhPrefs.morePause() ? b.rows : -b.rows;
+	}
+
+	/** For the core: how many rows a message takes, starting on the page's row start. */
+	public static int rowsForCore(String text, int start)
+	{
+		Band b = sBand;
+		if(b == null)
+			return 1;
+		synchronized(b)
+		{
+			return wrap(text, start, b.paint, b.width, b.slot, b.rows).size();
+		}
+	}
+
+	/**
+	 * A message broken into the band's rows at spaces, as tty breaks a long one
+	 * (topl.c); a word wider than a row is broken where it must be.  A page's
+	 * last row keeps room at its right end for --More--, as tty keeps 8 columns.
+	 * The same code on the web (web.js, wrapRows), so the two builds page alike.
+	 */
+	static List<String> wrap(String text, int startRow, Paint paint, float width, float slot, int rows)
+	{
+		List<String> out = new ArrayList<>();
+		if(width < 40f || rows <= 0)
+		{
+			out.add(text);
+			return out;
+		}
+		StringBuilder row = new StringBuilder();
+		int r = startRow;
+		int i = 0, n = text.length();
+		while(i < n)
+		{
+			int j = i;
+			boolean spaces = text.charAt(i) == ' ';
+			while(j < n && (text.charAt(j) == ' ') == spaces)
+				j++;
+			String w = text.substring(i, j);
+			i = j;
+			float room = width - ((r % rows) == rows - 1 ? slot : 0f);
+			if(spaces)
+			{
+				// a break falls on spaces, and eats them
+				if(row.length() > 0)
+				{
+					if(paint.measureText(row + w) <= room)
+						row.append(w);
+					else
+					{
+						out.add(trimEnd(row));
+						row.setLength(0);
+						r++;
+					}
+				}
+				continue;
+			}
+			if(paint.measureText(row + w) <= room)
+			{
+				row.append(w);
+				continue;
+			}
+			if(row.length() > 0)
+			{
+				out.add(trimEnd(row));
+				row.setLength(0);
+				r++;
+				room = width - ((r % rows) == rows - 1 ? slot : 0f);
+			}
+			String rest = w;
+			while(paint.measureText(rest) > room)
+			{
+				int k = rest.length() - 1;
+				while(k > 1 && paint.measureText(rest, 0, k) > room)
+					k--;
+				out.add(rest.substring(0, k));
+				rest = rest.substring(k);
+				r++;
+				room = width - ((r % rows) == rows - 1 ? slot : 0f);
+			}
+			row.append(rest);
+		}
+		if(row.length() > 0 || out.isEmpty())
+			out.add(trimEnd(row));
+		return out;
+	}
+
+	private static String trimEnd(StringBuilder sb)
+	{
+		int e = sb.length();
+		while(e > 0 && sb.charAt(e - 1) == ' ')
+			e--;
+		return sb.substring(0, e);
 	}
 
 	private final TextPaint mMsg  = new TextPaint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
@@ -63,14 +203,25 @@ public class RhScreen extends View
 
 	private final Listener mListener;
 	private RhStatus mStatus;
-	private String mMessage = "";
-	private int mMore;
-	private StaticLayout mLayout;
+	private final int mRows;
+	/** This page's messages; the page before, dimmed, while this one is empty. */
+	private List<String> mPage = Collections.emptyList();
+	private List<String> mOld = Collections.emptyList();
+	/** The page row the band starts at: a message longer than the band. */
+	private int mScroll;
+	private boolean mMorePrompt;
+	/** Rows to draw, and how many messages went by unshown (the pause turned off). */
+	private final List<String> mShown = new ArrayList<>();
+	private boolean mShownOld;
+	private int mHidden;
+	private boolean mDirty = true;
+	private float mDownX, mDownY;
 
-	public RhScreen(Context context, Listener listener)
+	public RhScreen(Context context, Listener listener, int rows)
 	{
 		super(context);
 		mListener = listener;
+		mRows = rows;
 		mMsg.setTypeface(RhTheme.screenFont(context));
 		mMsg.setTextSize(msgSize());
 		mStat.setTypeface(RhTheme.screenFont(context));
@@ -102,40 +253,135 @@ public class RhScreen extends View
 		invalidate();
 	}
 
-	public void setMessage(String message, int more)
+	public int rows() { return mRows; }
+
+	/** The band's page (NHW_Message), where it is scrolled to, and whether --More-- is up. */
+	public void setBand(List<String> page, List<String> old, int scroll, boolean morePrompt)
 	{
-		String m = message == null ? "" : message.trim();
-		if(m.equals(mMessage) && more == mMore)
-			return;
-		mMessage = m;
-		mMore = Math.max(0, more);
-		mLayout = null;
+		mPage = page == null ? Collections.<String>emptyList() : page;
+		mOld = old == null ? Collections.<String>emptyList() : old;
+		mScroll = Math.max(0, scroll);
+		mMorePrompt = morePrompt;
+		mDirty = true;
 		invalidate();
 	}
+
+	/** Whether the MORE lamp is lit: --More-- is up, or messages went by unshown. */
+	public boolean lampMore()
+	{
+		layoutRows();
+		return mMorePrompt || mHidden > 0;
+	}
+
+	private float textWidth() { return getWidth() - 2 * dp(PAD_H); }
+	private float slotWidth() { return mMsg.measureText("--More--") + dp(14f); }
 
 	@Override
 	protected void onSizeChanged(int w, int h, int oldw, int oldh)
 	{
 		super.onSizeChanged(w, h, oldw, oldh);
-		mLayout = null;
+		mDirty = true;
 		mClip.reset();
 		mRect.set(0f, 0f, w, h);
 		float r = dp(RhTheme.caseless() ? 8f : RhCase.GLASS_R);
 		mClip.addRoundRect(mRect, r, r, Path.Direction.CW);
+		publish();
 	}
 
-	@SuppressWarnings("deprecation")
-	private StaticLayout layout()
+	@Override
+	protected void onVisibilityChanged(View changedView, int visibility)
 	{
-		if(mLayout == null && mMessage.length() > 0 && getWidth() > 0)
+		super.onVisibilityChanged(changedView, visibility);
+		publish();
+	}
+
+	@Override
+	protected void onAttachedToWindow()
+	{
+		super.onAttachedToWindow();
+		publish();
+	}
+
+	@Override
+	protected void onDetachedFromWindow()
+	{
+		if(sOwner == this)
 		{
-			int width = Math.max(1, Math.round(getWidth() - 2 * dp(PAD_H)));
-			// Lines sit exactly LINE apart whatever the font's own leading.
-			Paint.FontMetrics fm = mMsg.getFontMetrics();
-			mLayout = new StaticLayout(mMessage, mMsg, width, Layout.Alignment.ALIGN_NORMAL,
-			                           1f, dp(LINE) - (fm.descent - fm.ascent), false);
+			sBand = null;
+			sOwner = null;
 		}
-		return mLayout;
+		super.onDetachedFromWindow();
+	}
+
+	/** Tell the core about the band this view draws, or that there is none. */
+	private void publish()
+	{
+		if(getWidth() <= 0 || !isShown())
+		{
+			if(sOwner == this)
+				sBand = null;
+			return;
+		}
+		sBand = new Band(new TextPaint(mMsg), textWidth(), slotWidth(), mRows);
+		sOwner = this;
+	}
+
+	/**
+	 * The rows to draw.  Pausing, the page from where it is scrolled to -- the
+	 * core never lets it run past the band.  Not pausing, the newest messages
+	 * that fit whole, and a count of the rest.  An empty page shows the one
+	 * before it, dimmed.
+	 */
+	private void layoutRows()
+	{
+		if(!mDirty)
+			return;
+		mDirty = false;
+		mShown.clear();
+		mHidden = 0;
+		mShownOld = mPage.isEmpty();
+		List<String> src = mShownOld ? mOld : mPage;
+		if(src.isEmpty() || getWidth() <= 0)
+			return;
+		float width = textWidth(), slot = slotWidth();
+		if(RhPrefs.morePause())
+		{
+			List<String> all = rowsOf(src, width, slot);
+			int from = mShownOld ? Math.max(0, all.size() - mRows) : Math.min(mScroll, all.size());
+			for(int i = from; i < all.size() && i < from + mRows; i++)
+				mShown.add(all.get(i));
+			return;
+		}
+		int k = src.size();
+		List<String> fit = Collections.emptyList();
+		while(k > 0)
+		{
+			List<String> trial = rowsOf(src.subList(k - 1, src.size()), width, slot);
+			if(trial.size() > mRows)
+				break;
+			fit = trial;
+			k--;
+		}
+		if(fit.isEmpty())
+		{
+			// the newest alone is longer than the band: its start, cut short
+			List<String> last = rowsOf(src.subList(src.size() - 1, src.size()), width, slot);
+			for(int i = 0; i < mRows && i < last.size(); i++)
+				mShown.add(last.get(i));
+			mShown.set(mShown.size() - 1, mShown.get(mShown.size() - 1) + "\u2026");
+			k = src.size() - 1;
+		}
+		else
+			mShown.addAll(fit);
+		mHidden = k;
+	}
+
+	private List<String> rowsOf(List<String> msgs, float width, float slot)
+	{
+		List<String> rows = new ArrayList<>();
+		for(String m : msgs)
+			rows.addAll(wrap(m, rows.size(), mMsg, width, slot, mRows));
+		return rows;
 	}
 
 	// ____________________________________________________________________________________
@@ -148,11 +394,10 @@ public class RhScreen extends View
 		canvas.clipPath(mClip);
 
 		// The message band is solid glass: the map is centred below it and must not
-		// show through the text.  A long message spills over the map's top edge
-		// rather than moving it -- the map area never changes size with the text.
-		StaticLayout l = layout();
-		int lines = l == null ? 0 : Math.min(l.getLineCount(), MAX_MSG_LINES);
-		float msgBottom = Math.max(dp(MSG_BAND), dp(4f) + lines * dp(LINE) + dp(5f));
+		// show through the text.  Its height is fixed; what does not fit waits
+		// behind --More--.
+		layoutRows();
+		float msgBottom = dp(msgBand(mRows));
 		// Caseless, it is smoked glass over the map rather than the tube.
 		boolean caseless = RhTheme.caseless();
 		mFill.setColor(caseless ? 0xc7070a08 : RhTheme.GLASS_BG);
@@ -166,24 +411,49 @@ public class RhScreen extends View
 			canvas.drawRect(0f, h - band, w, h, mFill);
 		}
 
-		if(l != null)
+		if(!mShown.isEmpty())
 		{
+			Paint.FontMetrics fm = mMsg.getFontMetrics();
+			float lineH = dp(LINE);
+			int colour = mShownOld ? RhTheme.phosphorDim() : text;
+			mMsg.setColor(colour);
+			if(!mShownOld)
+				mMsg.setShadowLayer(dp(3f), 0f, 0f, (text & 0x00ffffff) | 0x80000000);
 			canvas.save();
-			canvas.translate(dp(PAD_H), dp(5f));
-			canvas.clipRect(0f, 0f, w - 2 * dp(PAD_H), lines * dp(LINE));
-			mMsg.setColor(text);
-			mMsg.setShadowLayer(dp(3f), 0f, 0f, (text & 0x00ffffff) | 0x80000000);
-			l.draw(canvas);
-			mMsg.clearShadowLayer();
+			canvas.clipRect(0f, 0f, w, msgBottom);
+			for(int i = 0; i < mShown.size(); i++)
+			{
+				float base = dp(5f) + i * lineH + (lineH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
+				canvas.drawText(mShown.get(i), dp(PAD_H), base, mMsg);
+			}
 			canvas.restore();
+			mMsg.clearShadowLayer();
 		}
-		if(mMore > 0)
+		// The last row's right end: --More--, inverse amber as tty's standout
+		// shows it, or with the pause off how many messages went by unshown.
 		{
-			mStat.setTextAlign(Paint.Align.RIGHT);
-			mStat.setColor(RhTheme.LAMP_AMBER);
-			String tag = "+" + mMore + " ▸";
-			canvas.drawText(tag, w - dp(PAD_H), msgBottom - dp(4f), mStat);
-			mStat.setTextAlign(Paint.Align.LEFT);
+			Paint.FontMetrics fm = mMsg.getFontMetrics();
+			float lineH = dp(LINE);
+			float base = dp(5f) + (mRows - 1) * lineH + (lineH - (fm.descent - fm.ascent)) / 2f - fm.ascent;
+			float right = w - dp(PAD_H);
+			if(mMorePrompt)
+			{
+				String tag = "--More--";
+				float tw = mMsg.measureText(tag);
+				mFill.setColor(RhTheme.LAMP_AMBER);
+				canvas.drawRect(right - tw - dp(6f), base + fm.ascent, right, base + fm.descent, mFill);
+				mMsg.setColor(RhTheme.GLASS_BG);
+				mMsg.setTextAlign(Paint.Align.RIGHT);
+				canvas.drawText(tag, right - dp(3f), base, mMsg);
+				mMsg.setTextAlign(Paint.Align.LEFT);
+			}
+			else if(mHidden > 0)
+			{
+				mMsg.setColor(RhTheme.LAMP_AMBER);
+				mMsg.setTextAlign(Paint.Align.RIGHT);
+				canvas.drawText("+" + mHidden + " \u25b8", right, base, mMsg);
+				mMsg.setTextAlign(Paint.Align.LEFT);
+			}
 		}
 
 		drawStatus(canvas, w, h);
@@ -445,17 +715,37 @@ public class RhScreen extends View
 	// ____________________________________________________________________________________
 	/**
 	 * The message band is glass, not map: a tap on it stops here, and answers only
-	 * while earlier messages have scrolled away -- the same rule the colourful
-	 * style's message panel followed.  Everything below it passes through to the
-	 * map, the status lines included: they are see-through, and the map under
-	 * them is as live as the rest (Lucas, 2026-09-24).
+	 * while messages went by unshown -- the same rule the colourful style's
+	 * message panel followed.  Everything below it passes through to the map, the
+	 * status lines included: they are see-through, and the map under them is as
+	 * live as the rest (Lucas, 2026-09-24).
+	 *
+	 * At --More-- the whole glass is the prompt: a tap anywhere on it is Space,
+	 * and nothing reaches the map until it is answered -- the tap that answers
+	 * never becomes a move or a travel.
 	 */
 	@Override
 	public boolean onTouchEvent(MotionEvent e)
 	{
-		if(e.getY() >= dp(MSG_BAND))
+		if(mMorePrompt)
+		{
+			switch(e.getActionMasked())
+			{
+				case MotionEvent.ACTION_DOWN:
+					mDownX = e.getX();
+					mDownY = e.getY();
+					break;
+				case MotionEvent.ACTION_UP:
+					if(Math.hypot(e.getX() - mDownX, e.getY() - mDownY) < dp(16f) && mListener != null)
+						mListener.onMore();
+					break;
+			}
+			return true;
+		}
+		if(e.getY() >= dp(msgBand(mRows)))
 			return false;
-		if(mMore > 0 && e.getActionMasked() == MotionEvent.ACTION_UP && mListener != null)
+		layoutRows();
+		if(mHidden > 0 && e.getActionMasked() == MotionEvent.ACTION_UP && mListener != null)
 			mListener.onHistory();
 		return true;
 	}

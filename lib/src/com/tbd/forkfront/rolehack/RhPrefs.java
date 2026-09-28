@@ -49,11 +49,15 @@ public final class RhPrefs
 	public static final String KEY_STATUS_LINES  = "rhStatusLines";
 	/** The paper doll: the hero's gear drawn on the hero tile (placeholder art). */
 	public static final String KEY_PAPER_DOLL    = "rhPaperDoll";
+	/** Pause with --More-- when the message band is full, as tty does (Lucas, 2026-09-28). */
+	public static final String KEY_MORE_PAUSE    = "rhMorePause";
 
 	private static boolean sEnabled = true;
 	private static LabelMode sLabelMode = LabelMode.WORDS;
 	private static boolean sKeyFlash = true;
 	private static boolean sPaperDoll = true;
+	/** Read on the NetHack thread too (RhScreen.bandForCore). */
+	private static volatile boolean sMorePause = true;
 	private static StatusLines sStatusLines = StatusLines.FULL;
 	/**
 	 * Movement key size in design dp.  A preference rather than a constant because
@@ -106,6 +110,7 @@ public final class RhPrefs
 		sEnabled   = prefs.getBoolean(KEY_ENABLED, true);
 		sKeyFlash  = prefs.getBoolean(KEY_KEY_FLASH, true);
 		sPaperDoll = prefs.getBoolean(KEY_PAPER_DOLL, true);
+		sMorePause = prefs.getBoolean(KEY_MORE_PAUSE, true);
 		sLabelMode = parseLabelMode(prefs.getString(KEY_LABEL_MODE, "words"));
 		sStatusLines = parseStatusLines(prefs.getString(KEY_STATUS_LINES, "full"));
 		sPadCell   = parseInt(prefs.getString(KEY_PAD_CELL, null),
@@ -181,6 +186,7 @@ public final class RhPrefs
 	public static LabelMode labelMode()  { return sLabelMode; }
 	public static boolean keyFlash()     { return sKeyFlash; }
 	public static boolean paperDoll()    { return sPaperDoll; }
+	public static boolean morePause()    { return sMorePause; }
 	public static StatusLines statusLines() { return sStatusLines; }
 	public static int padCell()          { return sPadCell; }
 

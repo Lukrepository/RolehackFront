@@ -107,7 +107,7 @@
 
 			<CheckBoxPreference
 				android:title="Use the mobile interface"
-				android:summary="Replace the command panels with the thumb-anchored layout (landscape only)"
+				android:summary="Replace the command panels with the thumb-anchored layout, in landscape and portrait"
 				android:persistent="true"
 				android:defaultValue="true"
 				android:key="rhEnabled"/>
@@ -136,6 +136,13 @@
 				android:defaultValue="full"
 				android:entries="@array/rhStatusLinesNames"
 				android:entryValues="@array/rhStatusLinesValues"/>
+
+			<CheckBoxPreference
+				android:title="Pause when the band is full"
+				android:summary="Show --More-- and wait for a tap, as the classic game does, so no message goes by unseen. Off: the band shows the newest messages and counts the rest (+N)"
+				android:persistent="true"
+				android:defaultValue="true"
+				android:key="rhMorePause"/>
 
 			<ListPreference
 				android:title="Screen phosphor"

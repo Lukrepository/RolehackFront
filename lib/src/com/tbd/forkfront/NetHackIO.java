@@ -704,6 +704,48 @@ public class NetHackIO
 	}
 
 	// ____________________________________________________________________________________
+	// Rolehack: the message band's --More--.  The core decides when the band is
+	// full, as tty's top line does (winandroid.c, rh_msg_place()); these two
+	// answer on the NetHack thread from what RhScreen last published.
+	@SuppressWarnings("unused")
+	private int rhMsgBand()
+	{
+		return com.tbd.forkfront.rolehack.RhScreen.bandForCore();
+	}
+
+	@SuppressWarnings("unused")
+	private int rhMsgRows(final byte[] cmsg, final int startRow)
+	{
+		return com.tbd.forkfront.rolehack.RhScreen.rowsForCore(mDecoder.decode(cmsg), startRow);
+	}
+
+	@SuppressWarnings("unused")
+	private void rhMore(final int on)
+	{
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.rhMore(on != 0);
+			}
+		});
+	}
+
+	@SuppressWarnings("unused")
+	private void rhMsgScroll(final int row)
+	{
+		mHandler.post(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				mNhHandler.rhMsgScroll(row);
+			}
+		});
+	}
+
+	// ____________________________________________________________________________________
 	@SuppressWarnings("unused")
 	private void displayWindow(final int wid, final int bBlocking)
 	{

@@ -238,6 +238,10 @@ public class RhOverlay extends FrameLayout
 	private RhScrollWell mRestWell;
 	private String mMessageText = "";
 	private int mMessageMore;
+	/** The message band's page (NHW_Message); see RhScreen.setBand. */
+	private java.util.List<String> mBandPage, mBandOld;
+	private int mBandScroll;
+	private boolean mBandMore;
 	private RhStatus mStatus;
 	private final List<RhFace> mPadCells = new ArrayList<RhFace>();
 	private RhFace mPadCentre;
@@ -509,7 +513,13 @@ public class RhOverlay extends FrameLayout
 			{
 				execute(RhCommands.PREV_MSGS, mScreen);
 			}
-		});
+
+			@Override
+			public void onMore()
+			{
+				mHost.sendCommand(" ");
+			}
+		}, msgRows());
 		LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
 		if(!mScreenOnly)
 		{
@@ -521,8 +531,20 @@ public class RhOverlay extends FrameLayout
 		addView(mScreen, lp);
 		if(mStatus != null)
 			mScreen.setStatus(mStatus);
-		mScreen.setMessage(mMessageText, mMessageMore);
+		mScreen.setBand(mBandPage, mBandOld, mBandScroll, mBandMore);
 		updateLamps();
+	}
+
+	/** The message band's rows: three in portrait, two in landscape. */
+	private int msgRows()
+	{
+		return RhScreen.msgRows(mPortraitLayout);
+	}
+
+	/** The message band's height, design dp. */
+	private float msgBandDp()
+	{
+		return RhScreen.msgBand(msgRows());
 	}
 
 	/**
@@ -538,7 +560,7 @@ public class RhOverlay extends FrameLayout
 		if(mScreenOnly)
 		{
 			// the screen fills the view: the map between its two bands
-			int top    = RhTheme.dpi(mContext, RhScreen.MSG_BAND);
+			int top    = RhTheme.dpi(mContext, msgBandDp());
 			int bottom = RhTheme.dpi(mContext, RhScreen.statusBand());
 			if(getHeight() - top - bottom <= 0)
 				return null;
@@ -550,7 +572,7 @@ public class RhOverlay extends FrameLayout
 		if(RhTheme.caseless() && !mPortraitLayout)
 			return null;
 		int side   = RhTheme.dpi(mContext, glassSideDp() + 2f);
-		int top    = RhTheme.dpi(mContext, glassTopDp() + RhScreen.MSG_BAND);
+		int top    = RhTheme.dpi(mContext, glassTopDp() + msgBandDp());
 		int bottom = RhTheme.dpi(mContext, glassBottomDp() + RhScreen.statusBand());
 		if(getWidth() - 2 * side <= 0 || getHeight() - top - bottom <= 0)
 			return null;
@@ -699,7 +721,8 @@ public class RhOverlay extends FrameLayout
 	private void updateLamps()
 	{
 		if(mCase != null)
-			mCase.setLamps(RhPrefs.searchMode(), mArmed != null, mMessageMore > 0);
+			mCase.setLamps(RhPrefs.searchMode(), mArmed != null,
+					mScreen != null ? mScreen.lampMore() : mMessageMore > 0);
 	}
 
 	/**
@@ -1656,8 +1679,18 @@ public class RhOverlay extends FrameLayout
 		mMessageMore = more;
 		if(mMessagePanel != null)
 			mMessagePanel.setMessage(message, more);
+		updateLamps();
+	}
+
+	/** The message band: this page, the one before, where it is scrolled to, and --More--. */
+	public void setBand(java.util.List<String> page, java.util.List<String> old, int scroll, boolean more)
+	{
+		mBandPage = page;
+		mBandOld = old;
+		mBandScroll = scroll;
+		mBandMore = more;
 		if(mScreen != null)
-			mScreen.setMessage(message, more);
+			mScreen.setBand(page, old, scroll, more);
 		updateLamps();
 	}
 
@@ -3466,7 +3499,7 @@ public class RhOverlay extends FrameLayout
 		{
 			// Across the top of the map, under the message lines.
 			lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-			lp.topMargin = RhTheme.dpi(mContext, glassTopDp() + RhScreen.MSG_BAND + 6f);
+			lp.topMargin = RhTheme.dpi(mContext, glassTopDp() + msgBandDp() + 6f);
 		}
 		else
 		{

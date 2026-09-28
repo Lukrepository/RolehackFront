@@ -29,6 +29,12 @@ public interface NH_Handler
 
 	/** Rolehack: the next menu is a step of character creation; see RhCreate. */
 	void creation(int step, int heroTile, int tone);
+
+	/** Rolehack: the core waits at --More-- on the message band, or has stopped. */
+	void rhMore(boolean on);
+
+	/** Rolehack: a message longer than the band: show it from this page row. */
+	void rhMsgScroll(int row);
 	void rawPrint(int attr, String msg);
 	void printTile(int wid, int x, int y, int tile, int ch, int col, int special);
 	void ynFunction(String question, byte[] choices, int def);

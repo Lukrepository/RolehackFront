@@ -676,7 +676,10 @@ public class NH_State
 	private void pushRolehackMessage()
 	{
 		if(mRolehackUI != null)
+		{
 			mRolehackUI.setMessage(mMessage.getDisplayText(), mMessage.getOverflowCount());
+			mRolehackUI.setBand(mMessage.bandPage(), mMessage.bandOld(), mMessage.bandScroll(), mMessage.bandMore());
+		}
 	}
 
 	private void applyRolehackTopBand()
@@ -867,7 +870,26 @@ public class NH_State
 				wnd.clear();
 				if(wnd == mMap)
 					mMap.setRogueLevel(isRogueLevel != 0);
+				// Rolehack: the band starts a page, and the old one dims
+				if(wnd == mMessage)
+					pushRolehackMessage();
 			}
+		}
+
+		// ____________________________________________________________________________________
+		@Override
+		public void rhMore(boolean on)
+		{
+			mMessage.setMorePrompt(on);
+			pushRolehackMessage();
+		}
+
+		// ____________________________________________________________________________________
+		@Override
+		public void rhMsgScroll(int row)
+		{
+			mMessage.setScroll(row);
+			pushRolehackMessage();
 		}
 
 		// ____________________________________________________________________________________
