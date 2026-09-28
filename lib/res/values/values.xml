@@ -128,10 +128,10 @@
 	</string-array>
 	<string-array name="rhColourVisionNames">
 		<item>Standard</item>
-		<item>Protanopia (red-weak)</item>
-		<item>Deuteranopia (green-weak)</item>
-		<item>Tritanopia (blue-weak)</item>
-		<item>Monochrome</item>
+		<item>Protanopia (red-weak): the red-green palette</item>
+		<item>Deuteranopia (green-weak): the red-green palette</item>
+		<item>Tritanopia (blue-weak): its own palette</item>
+		<item>Monochrome: blessed, uncursed, cursed and HP by brightness</item>
 	</string-array>
 	<string-array name="rhColourVisionValues">
 		<item>standard</item>
