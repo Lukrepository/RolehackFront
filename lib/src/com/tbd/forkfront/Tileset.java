@@ -9,6 +9,8 @@ import android.preference.PreferenceManager;
 import android.text.TextPaint;
 import android.widget.Toast;
 
+import com.tbd.forkfront.rolehack.RhTilePalette;
+
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +29,10 @@ public class Tileset
 	private static final String LOCAL_TILESET_NAME = "custom_tileset";
 
 	private Bitmap mBitmap;
+	// Rolehack: the sheet as loaded, before the Colour vision setting's tile palette
+	private Bitmap mSheet;
+	private boolean mCustomSheet;
+	private int mPalette = RhTilePalette.STANDARD;
 	private Bitmap mOverlay;
 	private int mTileW;
 	private int mTileH;
@@ -61,7 +67,12 @@ public class Tileset
 		int tileH = prefs.getInt("tileH", 32);
 
 		if(mTilesetName.equals(tilesetName) && tileW == mTileW && tileH == mTileH)
+		{
+			// Rolehack: the same tiles, perhaps in another Colour vision setting
+			if(mPalette != RhTilePalette.palette())
+				applyPalette();
 			return;
+		}
 		mTilesetName = tilesetName;
 
 		if(!TTY && (tileW <= 0 || tileH <= 0))
@@ -80,6 +91,9 @@ public class Tileset
 				loadCustomTileset(tilesetName);
 			else
 				loadFromResources(tilesetName, r);
+			mSheet = mBitmap;
+			mCustomSheet = prefs.getBoolean("customTiles", false);
+			applyPalette();
 
 			int id = mContext.getResources().getIdentifier("overlays", "drawable", mContext.getPackageName());
 			if(id > 0)
@@ -116,6 +130,19 @@ public class Tileset
 	{
 		mTileCache.clear();
 		mBitmap = null;
+		mSheet = null;
+	}
+
+	// ____________________________________________________________________________________
+	/** Rolehack: NetHack's own tiles in the Colour vision setting's palette (RhTilePalette). */
+	private void applyPalette()
+	{
+		mPalette = RhTilePalette.palette();
+		RhTilePalette.setCustomSheet(mCustomSheet);
+		if(mSheet == null)
+			return;
+		mTileCache.clear();
+		mBitmap = mCustomSheet ? mSheet : RhTilePalette.recolour(mSheet);
 	}
 
 	// ____________________________________________________________________________________

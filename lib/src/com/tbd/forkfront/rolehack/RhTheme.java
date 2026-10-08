@@ -365,7 +365,9 @@ public final class RhTheme
 	 * own.  Monochrome moves only green, yellow and red (blessed, uncursed,
 	 * cursed) apart in lightness: fifteen colours cannot all be told apart by
 	 * lightness, which is the glyph option's job.  Searched by the workspace's
-	 * tools/cvd/cvd_modes.py; web.js MODE_COLORS matches.  Tiles are unchanged.
+	 * tools/cvd/cvd_modes.py; web.js MODE_COLORS matches.  The tiles and the paper
+	 * doll have per-mode palettes of their own (RhTilePalette; web.js TILE_MODES),
+	 * and Standard leaves them untouched.
 	 */
 	public static final int CV_STANDARD = 0, CV_PROTANOPIA = 1, CV_DEUTERANOPIA = 2,
 	                        CV_TRITANOPIA = 3, CV_MONOCHROME = 4;

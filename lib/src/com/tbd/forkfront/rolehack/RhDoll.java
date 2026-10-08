@@ -547,8 +547,15 @@ public final class RhDoll
 		}
 	}
 
-	// NetHack's tile palette (win/share/monsters.txt), for the fixed colours.
+	// A palette letter as the Colour vision setting draws it (RhTilePalette), so
+	// the doll's own sprites match the recoloured tiles they are drawn over.
 	private static int fixed(char c)
+	{
+		return RhTilePalette.colour(standard(c));
+	}
+
+	// NetHack's tile palette (win/share/monsters.txt), for the fixed colours.
+	private static int standard(char c)
 	{
 		switch(c)
 		{
@@ -1013,7 +1020,7 @@ public final class RhDoll
 					black++;
 			}
 			if(drawn > 0 && black > BLACK_HIDE_ABOVE * drawn)
-				return new int[] { 0xff6c91b6, 0xff363636, 0xff121212 };
+				return new int[] { fixed('P'), fixed('R'), fixed('Q') };
 		}
 		return ramp(look, slot, ts, false);
 	}

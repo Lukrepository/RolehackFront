@@ -126,12 +126,14 @@
 		<item>green</item>
 		<item>white</item>
 	</string-array>
+	<!-- Settings > Mobile interface > About colour vision (beta): RhColourVisionNote -->
+	<string name="rhColourVisionNote"><b>Colour vision (beta)</b>\n\n<b>Beta.</b> The palettes are tuned by simulation, and no colour-blind player has checked them yet. Tell Lucas what works and what does not.\n\n<b>What a mode changes.</b> The game\'s colours in menus, messages and the text map, and the tiles and the paper doll. Protanopia and deuteranopia share one red-green palette; tritanopia has its own; monochrome sets blessed, uncursed, cursed and HP apart by brightness. Standard, the default, swaps nothing.\n\n<b>Tiles.</b> In simulation each mode\'s tile palette keeps monsters drawn alike apart, except in Monochrome, where 12 pairs still look alike (mostly dragons). A custom tileset, and the paper doll drawn over it, are left as they are.\n\n<b>Recolour one monster yourself (text map only).</b> A glyph: colour shows on the text map (Settings, Tileset: Ascii (no tiles)), not on tiles. In Settings, Edit options file, add lines at the end, such as OPTIONS=glyph:G_male_brown_mold/0-128-255 and the same for G_female_brown_mold (a pet is G_pet_male_ and G_pet_female_). The file is read when the game starts: close Rolehack and open it again. The lines work after the file\'s own OPTIONS=DECgraphics,runmode:walk line. Don\'t add a second symset line: the game refuses it. For a new symbol too, change DECgraphics on that line to symset:Enhanced1 (keep runmode:walk), and put :U+2663 before the colour.</string>
 	<string-array name="rhColourVisionNames">
 		<item>Standard</item>
-		<item>Protanopia (red-weak): the red-green palette</item>
-		<item>Deuteranopia (green-weak): the red-green palette</item>
-		<item>Tritanopia (blue-weak): its own palette</item>
-		<item>Monochrome: blessed, uncursed, cursed and HP by brightness</item>
+		<item>Protanopia (red-blind or red-weak): the red-green palette</item>
+		<item>Deuteranopia (green-blind or green-weak): the red-green palette</item>
+		<item>Tritanopia (blue-blind or blue-weak): its own palette</item>
+		<item>Monochrome: by brightness</item>
 	</string-array>
 	<string-array name="rhColourVisionValues">
 		<item>standard</item>
