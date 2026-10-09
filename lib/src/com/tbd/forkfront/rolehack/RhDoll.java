@@ -78,12 +78,24 @@ import java.util.Map;
  *    seed the core derives from ubirthday; OPTIONS=skintone:N in the options
  *    file fixes it (Lucas, 2026-09-25).  The tone applies even with the doll
  *    switched off: it is the hero's look, not a preview feature.
+ *  - Left-handed heroes (Lucas, 2026-10-08, who left the pick to Claude: "your
+ *    pick claude"; tools/paperdoll/lefty-spec-2026-10-08.md and lefty.cjs in
+ *    the workspace): one hero in ten is left-handed (the core's ULEFTY, sent
+ *    from look version 3).  No tile is ever mirrored.  The weapon goes to the
+ *    other hand, the off grip, mirrored so its head still points outward; a
+ *    second weapon goes to the main grip; and a shield goes to the main grip
+ *    moved, not mirrored (Lucas: "moving the shield"), so its black edge lands
+ *    on the tile's arm separator.  Where the weapon crosses the tile's black
+ *    drop shadow, the shadow gives way to background round it (the halo), or
+ *    a dark weapon would vanish into it.  The Apothecary, Claude's own tile,
+ *    has a left-handed pose of his own: the flask in his right hand.
  */
 public final class RhDoll
 {
 	// ---- the look, as winandroid.c lays it out
 	public static final int LOOK_LEN = 4 + 3 * 11;      // version 1
 	public static final int LOOK_LEN_2 = LOOK_LEN + 2;  // version 2 adds the skin
+	public static final int LOOK_LEN_3 = LOOK_LEN_2 + 1; // version 3 adds the flags: bit 0 left-handed
 
 	/**
 	 * Skin tones, fairest to deepest; the skintone option counts from 1, and the
@@ -221,6 +233,8 @@ public final class RhDoll
 		private final int mKey;
 		/** Index into TONES. */
 		final int tone;
+		/** The hero is left-handed (the core's ULEFTY): the weapon in the other hand. */
+		final boolean lefty;
 
 		private Look(int[] a)
 		{
@@ -236,6 +250,7 @@ public final class RhDoll
 			}
 			else
 				tone = 1;   // NetHack's own
+			lefty = a[0] >= 3 && (a[LOOK_LEN_2] & 1) != 0;
 			// The composite depends on everything but the position.
 			int[] k = Arrays.copyOfRange(a, 3, a.length);
 			mKey = Arrays.hashCode(k);
@@ -244,7 +259,8 @@ public final class RhDoll
 		/** Null for a look this build doesn't understand. */
 		public static Look parse(int[] a)
 		{
-			if(a == null || a[0] < 1 || a.length < (a[0] >= 2 ? LOOK_LEN_2 : LOOK_LEN))
+			if(a == null || a[0] < 1
+			   || a.length < (a[0] >= 3 ? LOOK_LEN_3 : a[0] == 2 ? LOOK_LEN_2 : LOOK_LEN))
 				return null;
 			return new Look(a.clone());
 		}
@@ -260,7 +276,7 @@ public final class RhDoll
 	}
 
 	// ---- anchors per base tile (indices in default_16x16.png)
-	private static final class Anchor
+	private static final class Anchor implements Cloneable
 	{
 		int headDx, headDy, torsoDx, torsoDy;
 		int mainX = 4, mainY = 10, offX = 11, offY = 10;
@@ -287,6 +303,22 @@ public final class RhDoll
 		 * x, y, colour -- '~' background, 'L' the hero's skin, else a palette letter.
 		 */
 		Anchor offPose(int... xyc) { offPose = xyc; return this; }
+		/**
+		 * Every field, so a variant replaces only the fields it names and a later
+		 * change to this anchor reaches it (the left-handed Apothecary's).  The
+		 * arrays are shared: the setters replace them, nothing writes into them.
+		 */
+		Anchor copy()
+		{
+			try
+			{
+				return (Anchor)clone();
+			}
+			catch(CloneNotSupportedException e)
+			{
+				throw new AssertionError(e);
+			}
+		}
 		boolean keeps(int x, int y)
 		{
 			for(int i = 0; i + 1 < keep.length; i += 2)
@@ -334,6 +366,31 @@ public final class RhDoll
 		ANCHORS.put(339, new Anchor().grips(4, 11, 8, 11).feet(13, 4, 5, 7, 8).shortFrame());         // gnome, female
 		pair(148, new Anchor().head(-2, 1).torso(-2, 0).grips(2, 10, 9, 10).feet(13, 2, 3, 4, 6, 7, 8)); // orc
 	}
+
+	// The Apothecary left-handed (Lucas, 2026-10-08, "your pick claude"; tools/paperdoll/lefty.cjs):
+	// the flask raised in his right hand, now the off hand, and his left arm hanging.  His face,
+	// the potion strap and the drop shadow stay as drawn, so the light still comes from the upper
+	// left.  Edits to tiles 702 and 703 (they differ only in the hair), x, y, colour -- '~'
+	// background, 'L' the hero's skin, else a palette letter -- made before any layer, the doll
+	// switched off too.
+	private static final int[] APOTHECARY_LEFT_POSE = {
+		// the right side: the raised arm and flask go; the left arm hangs here instead
+		12, 3, '~', 12, 4, '~', 13, 4, '~', 12, 5, '~', 13, 5, '~', 12, 6, '~',
+		11, 7, '~', 11, 8, 'O', 11, 9, 'L', 11, 10, 'L', 10, 9, 'A', 10, 10, 'A',
+		// the left side: the hanging arm goes; the right arm is raised, the flask up to the light
+		4, 8, '~', 4, 9, '~', 4, 10, '~', 5, 9, 'A', 5, 10, 'A',
+		4, 7, 'O', 3, 6, 'L', 3, 5, 'L', 3, 4, 'I', 2, 4, 'I', 3, 3, 'N',
+	};
+	// ... and the anchor that goes with it: a copy of the 702 anchor, so a change to that one
+	// reaches this one, with four fields replaced -- its hands, cuffs and the kept flask neck
+	// mirrored, and the pose that lowers the raised (now right) arm when a shield or a second
+	// weapon is in that hand.  (The static block above has filled ANCHORS by now: static
+	// initialisers run in the order they are written.)
+	private static final Anchor APOTHECARY_LEFT = ANCHORS.get(702).copy()
+		.hands(11, 10, 3, 5, 4, 10).cuffs(11, 9, 3, 6, 4, 9).keep(3, 3)
+		.offPose(4, 7, '~', 3, 6, '~', 3, 5, '~', 3, 4, '~', 2, 4, '~', 3, 3, '~',
+		         4, 8, 'O', 4, 9, 'L', 4, 10, 'L');
+	private static boolean apothecary(int base) { return base == 702 || base == 703; }
 
 	// ---- sprites, on the human frame (face x6-9, eyes row 4, shoulders row 7)
 	private static final class Sprite
@@ -615,7 +672,9 @@ public final class RhDoll
 		if(look == null || look.base < 0 || ts.getTileWidth() != 16 || ts.getTileHeight() != 16)
 			return null;
 		int skin = TONES[look.tone];
-		if(!gear && skin == VANILLA_SKIN)
+		// a left-handed Apothecary's pose is his look, like the tone: drawn with the doll off too
+		boolean leftPose = look.lefty && apothecary(look.base);
+		if(!gear && skin == VANILLA_SKIN && !leftPose)
 			return null;
 		int key = look.mKey * 31 + (gear ? 1 : 0);
 		Bitmap cached = mCache.get(key);
@@ -627,12 +686,16 @@ public final class RhDoll
 		Anchor a = ANCHORS.get(look.base);
 		if(a == null)
 			a = DEFAULT;
+		if(leftPose)
+			a = APOTHECARY_LEFT;
 		int[] px = mBase.clone();
 		int bg = px[0];
 
 		for(int i = 0; i < px.length; i++)
 			if(px[i] == VANILLA_SKIN)
 				px[i] = skin;
+		if(leftPose)        // before the copy dressHuman keeps of the tile
+			repaint(px, bg, skin, APOTHECARY_LEFT_POSE);
 		if(!gear)
 		{
 			Bitmap bmp = Bitmap.createBitmap(px, 16, 16, Bitmap.Config.ARGB_8888);
@@ -641,7 +704,7 @@ public final class RhDoll
 		}
 
 		if(a.shortFrame)
-			dressShort(px, bg, look, a, ts);
+			dressShort(px, bg, look, a, ts, px.clone());
 		else
 			dressHuman(px, bg, look, a, ts, px.clone());
 
@@ -703,6 +766,11 @@ public final class RhDoll
 		if(look.draws(EYEWEAR))
 			stamp(px, bg, eyewearSprite(look, false), a.headDx, a.headDy, false,
 			      ramp(look, EYEWEAR, ts, false));
+		if(look.lefty)
+		{
+			holdLeftHanded(px, bg, look, a, ts, tile);
+			return;
+		}
 		if(look.draws(SHIELD))
 			stamp(px, bg, shieldSprite(look), a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
 		if(look.has(WEAPON))
@@ -721,7 +789,7 @@ public final class RhDoll
 	 * pound for pound the small races are the strong ones (Lucas, 2026-09-26;
 	 * weapons were squashed to two-thirds and shields were bucklers before).
 	 */
-	private void dressShort(int[] px, int bg, Look look, Anchor a, Tileset ts)
+	private void dressShort(int[] px, int bg, Look look, Anchor a, Tileset ts, int[] tile)
 	{
 		boolean front = look.has(CLOAK) && (look.shape(CLOAK) & FRONT) != 0;
 		boolean cape = look.draws(CLOAK) && !front;
@@ -747,6 +815,11 @@ public final class RhDoll
 		if(look.draws(EYEWEAR))
 			stamp(px, bg, eyewearSprite(look, true), 0, 0, false,
 			      ramp(look, EYEWEAR, ts, false));
+		if(look.lefty)
+		{
+			holdLeftHanded(px, bg, look, a, ts, tile);
+			return;
+		}
 		if(look.draws(SHIELD))
 			stamp(px, bg, shieldSprite(look), a.offX, a.offY, false, ramp(look, SHIELD, ts, false));
 		if(look.has(WEAPON))
@@ -755,6 +828,63 @@ public final class RhDoll
 		if(look.has(OFFHAND))
 			stamp(px, bg, heldSprite(look, OFFHAND), a.offX, a.offY, true,
 			      ramp(look, OFFHAND, ts, false));
+	}
+
+	/**
+	 * A left-handed hero's hands, on either frame (Lucas, 2026-10-08, "your pick
+	 * claude"; tools/paperdoll/lefty-spec-2026-10-08.md).  Same order as the
+	 * right hand's: the shield to the main grip, moved and not mirrored, its
+	 * black edge (its rightmost column) on mainX + 1, the tile's arm separator;
+	 * the weapon to the off grip, mirrored so it still points outward; a second
+	 * weapon to the main grip.  The weapon's halo comes between: the weapon would
+	 * vanish into the tile's black drop shadow, so the shadow gives way to
+	 * background beside it.  The second weapon gets none.
+	 */
+	private void holdLeftHanded(int[] px, int bg, Look look, Anchor a, Tileset ts, int[] tile)
+	{
+		if(look.draws(SHIELD))
+		{
+			Sprite s = shieldSprite(look);
+			stamp(px, bg, s, a.mainX + 1 - xmax(s), a.mainY, false, ramp(look, SHIELD, ts, false));
+		}
+		if(look.has(WEAPON))
+		{
+			boolean[] foot = new boolean[256];
+			stamp(px, bg, heldSprite(look, WEAPON), a.offX, a.offY, true,
+			      ramp(look, WEAPON, ts, false), foot);
+			halo(px, bg, foot, a, tile);
+		}
+		if(look.has(OFFHAND))
+			stamp(px, bg, heldSprite(look, OFFHAND), a.mainX, a.mainY, false,
+			      ramp(look, OFFHAND, ts, false));
+	}
+
+	/**
+	 * The weapon's halo.  Its pixels are its footprint (foot): every place its
+	 * stamp wrote, whether or not the colour changed -- a black blade pixel laid
+	 * on the black shadow is still the blade's.  Each 4-neighbour of one that is
+	 * not a weapon pixel itself, lies on the shadow side (x > offX), and is black
+	 * both now and in the tile's own pixels (the base before any gear) turns to
+	 * background.  Neighbours are tested against the footprint, not each other,
+	 * and only black changes, so the order does not matter.
+	 */
+	private static void halo(int[] px, int bg, boolean[] foot, Anchor a, int[] tile)
+	{
+		for(int i = 0; i < 256; i++)
+		{
+			if(!foot[i])
+				continue;
+			int x = i % 16, y = i / 16;
+			for(int d = 0; d < 4; d++)
+			{
+				int X = x + (d == 0 ? 1 : d == 1 ? -1 : 0), Y = y + (d == 2 ? 1 : d == 3 ? -1 : 0);
+				if(X < 0 || X >= 16 || Y < 0 || Y >= 16)
+					continue;
+				int j = Y * 16 + X;
+				if(!foot[j] && X > a.offX && (px[j] & 0xffffff) == 0 && (tile[j] & 0xffffff) == 0)
+					px[j] = bg;
+			}
+		}
 	}
 
 	/**
@@ -1365,6 +1495,12 @@ public final class RhDoll
 
 	private static void stamp(int[] px, int bg, Sprite s, int ox, int oy, boolean mirror, int[] ramp)
 	{
+		stamp(px, bg, s, ox, oy, mirror, ramp, null);
+	}
+
+	/** ... and, when foot is not null, marks there every place it writes: the sprite's footprint. */
+	private static void stamp(int[] px, int bg, Sprite s, int ox, int oy, boolean mirror, int[] ramp, boolean[] foot)
+	{
 		for(int r = 0; r < s.rows.length; r++)
 		{
 			String row = s.rows[r];
@@ -1388,7 +1524,30 @@ public final class RhDoll
 				default:  col = fixed(c);
 				}
 				px[y * 16 + x] = col;
+				if(foot != null)
+					foot[y * 16 + x] = true;
 			}
+		}
+	}
+
+	/** The rightmost column a sprite draws ('.' is not drawn), relative to where it is stamped. */
+	private static int xmax(Sprite s)
+	{
+		int m = Integer.MIN_VALUE;
+		for(int r = 0; r < s.rows.length; r++)
+			for(int i = 0; i < s.rows[r].length(); i++)
+				if(s.rows[r].charAt(i) != '.')
+					m = Math.max(m, s.x0s[r] + i);
+		return m;
+	}
+
+	/** x, y, colour edits to a tile: '~' background, 'L' the hero's skin, else a palette letter. */
+	private static void repaint(int[] px, int bg, int skin, int[] xyc)
+	{
+		for(int i = 0; i + 2 < xyc.length; i += 3)
+		{
+			char c = (char)xyc[i + 2];
+			putPx(px, xyc[i], xyc[i + 1], c == '~' ? bg : c == 'L' ? skin : fixed(c));
 		}
 	}
 
