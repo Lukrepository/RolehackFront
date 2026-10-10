@@ -172,22 +172,6 @@
 				android:entryValues="@array/rhPhosphorValues"/>
 
 			<ListPreference
-				android:title="Colour vision (beta)"
-				android:summary="Beta: tuned by simulation; no colour-blind player has checked it yet. Recolours menus, messages, the map, the tiles and the paper doll."
-				android:persistent="true"
-				android:key="rhColourVision"
-				android:defaultValue="standard"
-				android:entries="@array/rhColourVisionNames"
-				android:entryValues="@array/rhColourVisionValues"/>
-
-			<PreferenceScreen
-				android:title="About colour vision (beta)"
-				android:summary="What each mode changes, what is still unsolved, and how to recolour one monster yourself">
-				<com.tbd.forkfront.rolehack.RhColourVisionNote
-					android:title="About colour vision (beta)"/>
-			</PreferenceScreen>
-
-			<ListPreference
 				android:title="Screen font"
 				android:summary="Terminal styles: the message and status lines"
 				android:persistent="true"
@@ -264,6 +248,29 @@
 				android:defaultValue="100"
 				android:text=""
 				android:max="120"/>
+
+		</PreferenceScreen>
+
+		<!-- Rolehack: colour vision has a screen of its own, as the web's Accessibility box (2026-10-08) -->
+		<PreferenceScreen
+			android:title="Accessibility"
+			android:summary="Colour vision (beta)">
+
+			<ListPreference
+				android:title="Colour vision (beta)"
+				android:summary="Beta: tuned by simulation; no colour-blind player has checked it yet. Recolours menus, messages, the map, the tiles and the paper doll."
+				android:persistent="true"
+				android:key="rhColourVision"
+				android:defaultValue="standard"
+				android:entries="@array/rhColourVisionNames"
+				android:entryValues="@array/rhColourVisionValues"/>
+
+			<PreferenceScreen
+				android:title="About colour vision (beta)"
+				android:summary="What each mode changes, what is still unsolved, and how to recolour one monster yourself">
+				<com.tbd.forkfront.rolehack.RhColourVisionNote
+					android:title="About colour vision (beta)"/>
+			</PreferenceScreen>
 
 		</PreferenceScreen>
 
