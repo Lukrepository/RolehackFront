@@ -258,7 +258,7 @@
 
 			<ListPreference
 				android:title="Colour vision (beta)"
-				android:summary="Beta: tuned by simulation; no colour-blind player has checked it yet. Recolours menus, messages, the map, the tiles and the paper doll."
+				android:summary="Beta: tuned by simulation; first feedback: red-green needs more work. Recolours menus, messages, the map, the tiles and the paper doll."
 				android:persistent="true"
 				android:key="rhColourVision"
 				android:defaultValue="standard"
